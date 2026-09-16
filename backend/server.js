@@ -14,6 +14,11 @@ app.get('/', (req, res) => {
   res.status(200).json({ message: 'Backend is running successfully.' });
 });
 
+// Test API endpoint for frontend communication
+app.get('/api/test', (req, res) => {
+  res.status(200).json({ message: 'Frontend-Backend communication successful!' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
