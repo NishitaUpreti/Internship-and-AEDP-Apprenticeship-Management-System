@@ -31,7 +31,8 @@ const userSchema = new mongoose.Schema(
             required: true,
             unique: true,
             lowercase: true,
-            trim: true
+            trim: true,
+            match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         },
 
         passwordHash: {
@@ -41,7 +42,10 @@ const userSchema = new mongoose.Schema(
 
         externalIdentityRef: {
             type: String,
-            trim: true
+            trim: true,
+            required: function () {
+                return this.userType === "EXTERNAL";
+            }
         },
 
         role: {
@@ -58,7 +62,10 @@ const userSchema = new mongoose.Schema(
 
         universityId: {
             type: String,
-            trim: true
+            trim: true,
+            required: function () {
+                return this.userType === "INTERNAL";
+            }
         },
 
         department: {
@@ -82,6 +89,9 @@ const userSchema = new mongoose.Schema(
     }
 );
 
+userSchema.index({ role: 1 });
+userSchema.index({ userType: 1 });
+userSchema.index({ universityId: 1 });
 
 const User = mongoose.model("User", userSchema);
 
