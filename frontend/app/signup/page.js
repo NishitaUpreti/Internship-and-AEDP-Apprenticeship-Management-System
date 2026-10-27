@@ -40,6 +40,23 @@ export default function Signup(){
           </div>
 
           <div className="mt-6">
+            <label className="block text-gray-300 mb-2">I am a</label>
+            <select
+              name="role"
+              required
+              defaultValue=""
+              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700"
+            >
+              <option value="" disabled>Select your role</option>
+              <option value="student">Student</option>
+              <option value="employer">Employer</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="faculty">Faculty</option>
+            </select>
+
+          </div>
+
+          <div className="mt-6">
             <label className="block text-gray-300 mb-2">Email</label>
             <input type="email" placeholder="Enter your email" required
                 className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none"/>
