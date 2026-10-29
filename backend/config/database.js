@@ -1,4 +1,10 @@
 const mongoose = require("mongoose");
+const dns = require("dns");
+
+// Use reliable public DNS in local development to prevent querySrv ECONNREFUSED on restrictive Wi-Fi routers
+if (process.env.NODE_ENV !== "production") {
+    dns.setServers(["8.8.8.8", "1.1.1.1"]);
+}
 
 const connectDB = async () => {
     try {
