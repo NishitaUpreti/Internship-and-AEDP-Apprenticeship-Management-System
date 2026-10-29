@@ -3,6 +3,10 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/database');
 const apiRoutes = require('./routes');
+const errorHandler = require('./middleware/errorHandler');
+
+// Explicitly preload core database models (Issue #25, #26)
+require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +25,9 @@ app.use('/api', apiRoutes);
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Backend is running successfully.' });
 });
+
+// Centralized error handler (Issue #26)
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
