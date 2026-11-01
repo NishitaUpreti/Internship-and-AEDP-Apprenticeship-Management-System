@@ -1,41 +1,63 @@
+"use client"
+import Image from "next/image";
+import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+// usePathname()tells us which URL the user is currently visiting
+import {EllipsisVertical, Ellipsis, Settings, LogOut} from "lucide-react";
 
-export default function Sidebar() {
+export default function Sidebar({ links }) {
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    let pathname = usePathname();
     return (
-        <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r p-4 md:p-6">
-            <h2 className="text-xl font-bold mb-4 md:mb-8">
-                AppName
-            </h2>
-
-            <nav className="flex flex-row md:flex-col gap-2 overflow-x-auto">
-                <Link
-                    href="/student"
-                    className="px-4 py-2 rounded hover:bg-orange-300 hover:text-white whitespace-nowrap"
-                >
-                    Dashboard
+        <aside className={`${isCollapsed ? "w-20" : "w-64"} min-h-screen bg-[#171717] border-r border-white/10 transition-all duration-300 flex flex-col`}>
+            <div className="flex items-center justify-center border-b border-white/10 p-4">
+                <Link href="/student">
+                    <Image
+                        src={isCollapsed ? "/sqLogo.png":"/WorkLedgerLogo.png"}
+                        alt="WorkLedger"
+                        width={220}
+                        height={62}
+                        className={`object-contain transition-all duration-300 ${
+                                    isCollapsed ? "w-10 h-10" : "w-52 h-auto"
+                                    }`}
+                        priority
+                    />
                 </Link>
+                <button onClick={() => setIsCollapsed(!isCollapsed)} >
+                    {isCollapsed ? <EllipsisVertical /> : <Ellipsis />}
+                </button>
+            </div>
+            <nav>
 
-                <Link
-                    href="/student/applications"
-                    className="px-4 py-2 rounded hover:bg-orange-300 hover:text-white whitespace-nowrap"
-                >
-                    Applications
-                </Link>
+                {links.map((obj) => {
+                    const Icon = obj.icon;
+                    return (
+                        <Link title={isCollapsed ? obj.name : ""}
+                            className={`flex items-center rounded-xl px-4 py-3 transition-all ${
+                                isCollapsed ? "justify-center" : "gap-3"
+                            } ${
+                                pathname === obj.href || pathname.startsWith(obj.href + "/")
+                                    ? "bg-orange-500/15 text-orange-400"
+                                    : "text-gray-400 hover:bg-white/5 hover:text-white"
+                            }`
+                            } key={obj.href} href={obj.href}
+                        >
 
-                <Link
-                    href="/student/internship"
-                    className="px-4 py-2 rounded hover:bg-orange-300 hover:text-white whitespace-nowrap"
-                >
-                    My Internship
-                </Link>
+                            <Icon/>
+                            {!isCollapsed && <span>{obj.name}</span>}
 
-                <Link
-                    href="/student/hours"
-                    className="px-4 py-2 rounded hover:bg-orange-300 hover:text-white whitespace-nowrap"
-                >
-                    Hours & Credits
-                </Link>
+                        </Link>
+                    )
+                })}
             </nav>
+            <div className="mt-auto border-t border-white/10 p-3 space-y-2">
+                <Link title={isCollapsed ? "Settings" : ""} href="/" className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-400 hover:bg-white/5 hover:text-white transition-all">
+                    <Settings size={23} /> {!isCollapsed && <span>Settings</span>} </Link>
+                <Link title={isCollapsed ? "Logout" : ""} href="/" className="flex items-center gap-3 rounded-xl px-4 py-3 text-gray-400 hover:bg-white/5 hover:text-white transition-all">
+                    <LogOut size={23}/>  {!isCollapsed && <span>LogOut</span>} </Link>
+                
+            </div>
         </aside>
     );
 }
