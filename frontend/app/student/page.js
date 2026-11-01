@@ -164,7 +164,7 @@ export default function Student() {
                             Recent Opportunities
                         </p>
                         <Link
-                            href="/student/applications"
+                            href="/student/opportunities"
                             className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
                         >
                             View All

@@ -17,6 +17,8 @@ const ROLE_ALLOWED_PATHS = {
   "/employer": ["EMPLOYER_ADMIN", "ADMIN"],
   "/supervisor": ["INDUSTRY_SUPERVISOR", "ADMIN"],
   "/coordinator": ["INTERNSHIP_COORDINATOR", "HOD", "DEAN", "ADMIN"],
+  "/hod": ["HOD", "DEAN", "ADMIN"],
+  "/dean": ["DEAN", "ADMIN"],
   "/admin": ["ADMIN"],
 };
 
@@ -80,6 +82,8 @@ const DashboardLayout = ({ linksLayout, children }) => {
           else if (role === "EMPLOYER_ADMIN") target = "/employer";
           else if (role === "INDUSTRY_SUPERVISOR") target = "/supervisor";
           else if (role === "INTERNSHIP_COORDINATOR") target = "/coordinator";
+          else if (role === "HOD") target = "/hod";
+          else if (role === "DEAN") target = "/dean";
           else if (role === "ADMIN") target = "/admin";
 
           window.location.href = target;
@@ -132,8 +136,6 @@ const DashboardLayout = ({ linksLayout, children }) => {
         }
       })
       .catch((err) => {
-        // If network request failed (e.g. backend offline or restarting),
-        // permit existing session if token is present
         console.warn("Background auth verification deferred:", err?.message || err);
         setIsAuthorized(true);
       })

@@ -18,9 +18,6 @@ export default function Sidebar({ links, onLogoutClick }) {
     window.location.href = "/login";
   };
 
-  // Determine base dashboard path (e.g., /student, /faculty, /employer, etc.)
-  const basePath = links && links.length > 0 ? links[0].href : "/";
-
   return (
     <aside
       className={`${
@@ -28,13 +25,13 @@ export default function Sidebar({ links, onLogoutClick }) {
       } min-h-screen bg-[#171717] border-r border-white/10 transition-all duration-300 flex flex-col`}
     >
       <div className="flex items-center justify-between border-b border-white/10 p-4">
-        <Link href={basePath}>
+        <Link href="/" title="Go to WorkLedger Home" className="block focus:outline-none">
           <Image
             src={isCollapsed ? "/sqLogo-v2.png" : "/WorkLedgerLogo-v2.png"}
             alt="WorkLedger"
             width={220}
             height={62}
-            className={`object-contain transition-all duration-300 ${
+            className={`object-contain transition-all duration-300 hover:opacity-90 ${
               isCollapsed ? "w-10 h-10" : "w-44 h-auto"
             }`}
             priority

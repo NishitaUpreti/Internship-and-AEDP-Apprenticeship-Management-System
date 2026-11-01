@@ -6,6 +6,8 @@ const PROTECTED_ROUTES = [
   "/employer",
   "/supervisor",
   "/coordinator",
+  "/hod",
+  "/dean",
   "/admin",
 ];
 
@@ -21,8 +23,21 @@ const ROLE_PERMITTED_ROUTES = {
   "/employer": ["EMPLOYER_ADMIN", "ADMIN"],
   "/supervisor": ["INDUSTRY_SUPERVISOR", "ADMIN"],
   "/coordinator": ["INTERNSHIP_COORDINATOR", "HOD", "DEAN", "ADMIN"],
+  "/hod": ["HOD", "DEAN", "ADMIN"],
+  "/dean": ["DEAN", "ADMIN"],
   "/admin": ["ADMIN"],
 };
+
+function getTargetRouteForRole(userRole) {
+  if (userRole === "FACULTY_SUPERVISOR") return "/faculty";
+  if (userRole === "EMPLOYER_ADMIN") return "/employer";
+  if (userRole === "INDUSTRY_SUPERVISOR") return "/supervisor";
+  if (userRole === "INTERNSHIP_COORDINATOR") return "/coordinator";
+  if (userRole === "HOD") return "/hod";
+  if (userRole === "DEAN") return "/dean";
+  if (userRole === "ADMIN") return "/admin";
+  return "/student";
+}
 
 export function middleware(request) {
   const { pathname } = request.nextUrl;
@@ -41,7 +56,7 @@ export function middleware(request) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // 2. Role-based protection: if logged in as Student, prevent accessing /faculty, /admin, etc.
+    // 2. Role-based protection: check if logged-in role has permission for this route
     if (userRole) {
       const matchedBase = PROTECTED_ROUTES.find((route) =>
         pathname.startsWith(route)
@@ -49,13 +64,7 @@ export function middleware(request) {
       if (matchedBase) {
         const allowedRoles = ROLE_PERMITTED_ROUTES[matchedBase];
         if (allowedRoles && !allowedRoles.includes(userRole)) {
-          let target = "/student";
-          if (userRole === "FACULTY_SUPERVISOR") target = "/faculty";
-          else if (userRole === "EMPLOYER_ADMIN") target = "/employer";
-          else if (userRole === "INDUSTRY_SUPERVISOR") target = "/supervisor";
-          else if (userRole === "INTERNSHIP_COORDINATOR") target = "/coordinator";
-          else if (userRole === "ADMIN") target = "/admin";
-
+          const target = getTargetRouteForRole(userRole);
           return NextResponse.redirect(new URL(target, request.url));
         }
       }
@@ -64,13 +73,7 @@ export function middleware(request) {
 
   // 3. If already authenticated and visits /login or /signup, direct them straight to their dashboard
   if ((pathname === "/login" || pathname === "/signup") && token && userRole) {
-    let target = "/student";
-    if (userRole === "FACULTY_SUPERVISOR") target = "/faculty";
-    else if (userRole === "EMPLOYER_ADMIN") target = "/employer";
-    else if (userRole === "INDUSTRY_SUPERVISOR") target = "/supervisor";
-    else if (userRole === "INTERNSHIP_COORDINATOR") target = "/coordinator";
-    else if (userRole === "ADMIN") target = "/admin";
-
+    const target = getTargetRouteForRole(userRole);
     return NextResponse.redirect(new URL(target, request.url));
   }
 
@@ -84,9 +87,10 @@ export const config = {
     "/employer/:path*",
     "/supervisor/:path*",
     "/coordinator/:path*",
+    "/hod/:path*",
+    "/dean/:path*",
     "/admin/:path*",
     "/login",
     "/signup",
   ],
 };
-

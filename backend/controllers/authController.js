@@ -93,7 +93,7 @@ async function signup(req, res) {
                 return res.status(400).json({
                     success: false,
                     message: "Validation Error: Invalid or prohibited role selected for public registration.",
-                    allowedRoles: ["Student", "Employer", "Supervisor", "Faculty"]
+                    allowedRoles: ALLOWED_PUBLIC_SIGNUP_ROLES
                 });
             }
             assignedRole = normalized;

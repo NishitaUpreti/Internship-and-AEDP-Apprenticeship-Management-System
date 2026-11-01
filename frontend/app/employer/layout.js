@@ -1,26 +1,29 @@
-"use client"
+"use client";
 import DashboardLayout from "../components/DashboardLayout";
-
 import {
-    LayoutDashboard, BriefcaseBusiness, Users,
-    FileText, Building2, Settings
+  LayoutDashboard,
+  BriefcaseBusiness,
+  ClipboardCheck,
+  UserCheck,
+  Users,
+  FileCheck,
+  Building2,
 } from "lucide-react";
 
 const employerLinks = [
-    { name: "Dashboard", href: "/employer", icon: LayoutDashboard },
-    { name: "My Opportunities", href: "/employer/opportunities", icon: BriefcaseBusiness },
-    { name: "Applicants", href: "/employer/applicants", icon: Users },
-    { name: "Interns", href: "/employer/interns", icon: FileText },
-    { name: "Company Profile", href: "/employer/profile", icon: Building2 },
-    { name: "Settings", href: "/employer/settings", icon: Settings }
+  { name: "Dashboard", href: "/employer", icon: LayoutDashboard },
+  { name: "Opportunities", href: "/employer/opportunities", icon: BriefcaseBusiness },
+  { name: "Applications & Offers", href: "/employer/applicants", icon: ClipboardCheck },
+  { name: "Industry Supervisors", href: "/employer/supervisors", icon: UserCheck },
+  { name: "Active Interns", href: "/employer/interns", icon: Users },
+  { name: "Tripartite Agreements", href: "/employer/agreements", icon: FileCheck },
+  { name: "Company Profile", href: "/employer/profile", icon: Building2 },
 ];
 
-
 export default function EmployerLayout({ children }) {
-    return (
-        <DashboardLayout linksLayout={employerLinks}>
-                {children}
-            </DashboardLayout>
-
-    )
+  return (
+    <DashboardLayout linksLayout={employerLinks}>
+      {children}
+    </DashboardLayout>
+  );
 }
