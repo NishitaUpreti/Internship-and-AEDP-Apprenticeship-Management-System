@@ -13,8 +13,9 @@ const Navbar = () => {
                 <Link href="/employer">Employer</Link>
                 <Link href="/supervisor">Supervisor</Link>
                 <Link href="/faculty">Faculty</Link>
-                <Link href="/coordinator">Coordinator</Link>
                 <Link href="/admin">Admin</Link>
+                <Link href="/coordinator">Coordinator</Link>
+                
             </div>
         </nav>
     </div>

@@ -1,40 +1,88 @@
 const mongoose = require("mongoose");
 
-const VERIFICATION_STATUSES = [
+const EMPLOYER_VERIFICATION_STATUSES = [
     "PENDING",
     "VERIFIED",
     "REJECTED"
 ];
+const VERIFICATION_STATUSES = EMPLOYER_VERIFICATION_STATUSES;
+
+const addressSchema = new mongoose.Schema(
+    {
+        street: { type: String, trim: true },
+        city: { type: String, trim: true },
+        state: { type: String, trim: true },
+        country: { type: String, trim: true },
+        postalCode: { type: String, trim: true },
+        raw: { type: String, trim: true }
+    },
+    { _id: false }
+);
 
 const employerSchema = new mongoose.Schema(
     {
         organisationName: {
             type: String,
-            required: true,
+            required: [true, "Organisation name is required"],
             trim: true,
-            minlength: 2,
-            maxlength: 150
+            minlength: [2, "Organisation name must be at least 2 characters long"],
+            maxlength: [200, "Organisation name cannot exceed 200 characters"]
         },
+
         description: {
             type: String,
             trim: true,
-            maxlength: 2000
+            maxlength: [2000, "Description cannot exceed 2000 characters"]
         },
+
         website: {
             type: String,
             trim: true
         },
+
         address: {
-            type: String,
-            required: true,
-            trim: true,
-            maxlength: 500
+            type: addressSchema,
+            required: [true, "Address is required"],
+            set: function (val) {
+                if (!val) return val;
+                if (typeof val === "string") {
+                    return {
+                        street: val.trim(),
+                        raw: val.trim()
+                    };
+                }
+                return val;
+            }
         },
+
+        contactEmail: {
+            type: String,
+            lowercase: true,
+            trim: true
+        },
+
+        contactPhone: {
+            type: String,
+            trim: true
+        },
+
+        primaryAdminId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        },
+
         verificationStatus: {
             type: String,
-            enum: VERIFICATION_STATUSES,
-            default: "PENDING",
-            required: true
+            enum: {
+                values: EMPLOYER_VERIFICATION_STATUSES,
+                message: "{VALUE} is not a valid verification status"
+            },
+            default: "PENDING"
+        },
+
+        isActive: {
+            type: Boolean,
+            default: true
         }
     },
     {
@@ -44,6 +92,12 @@ const employerSchema = new mongoose.Schema(
 );
 
 employerSchema.index({ verificationStatus: 1 });
+
+employerSchema.methods.toJSON = function () {
+    const obj = this.toObject();
+    delete obj.__v;
+    return obj;
+};
 
 const Employer = mongoose.models.Employer || mongoose.model("Employer", employerSchema);
 

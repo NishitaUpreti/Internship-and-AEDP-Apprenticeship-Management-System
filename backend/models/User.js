@@ -1,39 +1,27 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-
-const USER_ROLES = [
-    "STUDENT",
-    "INDUSTRY_SUPERVISOR",
-    "FACULTY_SUPERVISOR",
-    "INTERNSHIP_COORDINATOR",
-    "HOD",
-    "DEAN",
-    "EMPLOYER_ADMIN",
-    "ADMIN"
-];
-
-const USER_TYPES = [
-    "INTERNAL",
-    "EXTERNAL"
-];
+const { USER_ROLES, USER_TYPES } = require("../config/roles");
 
 const userSchema = new mongoose.Schema(
     {
         name: {
             type: String,
-            required: true,
+            required: [true, "Name is required"],
             trim: true,
-            minlength: 2,
-            maxlength: 100
+            minlength: [2, "Name must be at least 2 characters long"],
+            maxlength: [100, "Name cannot exceed 100 characters"]
         },
 
         email: {
             type: String,
-            required: true,
+            required: [true, "Email is required"],
             unique: true,
             lowercase: true,
             trim: true,
-            match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+            match: [
+                /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                "Please provide a valid email address"
+            ]
         },
 
         passwordHash: {
@@ -44,29 +32,41 @@ const userSchema = new mongoose.Schema(
         externalIdentityRef: {
             type: String,
             trim: true,
-            required: function () {
-                return this.userType === "EXTERNAL";
-            }
+            required: [
+                function () {
+                    return this.userType === "EXTERNAL";
+                },
+                "External identity reference is required for external users"
+            ]
         },
 
         role: {
             type: String,
-            enum: USER_ROLES,
-            required: true
+            enum: {
+                values: USER_ROLES,
+                message: "{VALUE} is not a valid user role"
+            },
+            required: [true, "Role is required"]
         },
 
         userType: {
             type: String,
-            enum: USER_TYPES,
-            required: true
+            enum: {
+                values: USER_TYPES,
+                message: "{VALUE} is not a valid user type"
+            },
+            required: [true, "User type is required"]
         },
 
         universityId: {
             type: String,
             trim: true,
-            required: function () {
-                return this.userType === "INTERNAL";
-            }
+            required: [
+                function () {
+                    return this.userType === "INTERNAL";
+                },
+                "University ID is required for internal users"
+            ]
         },
 
         department: {
