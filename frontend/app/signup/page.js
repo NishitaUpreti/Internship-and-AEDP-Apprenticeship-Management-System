@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 
 export default function Signup() {
   const router = useRouter();
+  const [selectedRole, setSelectedRole] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -16,10 +17,17 @@ export default function Signup() {
     const form = event.target;
     const firstName = form.firstName.value.trim();
     const lastName = form.lastName.value.trim();
-    const role = form.role.value;
+    const role = selectedRole || form.role?.value;
     const email = form.email.value.trim();
     const password = form.password.value;
     const confirmPassword = form.confirmPassword.value;
+    const universityId = form.universityId?.value?.trim() || undefined;
+    const department = form.department?.value?.trim() || undefined;
+
+    if (!role) {
+      setError("Please select your role.");
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match!");
@@ -47,6 +55,8 @@ export default function Signup() {
           email,
           password,
           confirmPassword,
+          universityId,
+          department,
         }),
       });
 
@@ -58,11 +68,13 @@ export default function Signup() {
       }
 
       setSuccess("Account created successfully! Redirecting to login...");
-      
-      // Store token & user info in localStorage
+
+      // Store token & user info in localStorage and cookies for route protection
       if (data.token) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+        document.cookie = `token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+        document.cookie = `user_role=${data.user?.role || ""}; path=/; max-age=604800; SameSite=Lax`;
       }
 
       setTimeout(() => {
@@ -77,8 +89,8 @@ export default function Signup() {
   };
 
   return (
-    <div className="bg-[#111111] min-h-screen flex items-center justify-center">
-      <div className="bg-[#1c1c1c] p-8 rounded-xl w-full max-w-md">
+    <div className="bg-[#111111] min-h-screen flex items-center justify-center py-10">
+      <div className="bg-[#1c1c1c] p-8 rounded-xl w-full max-w-md border border-gray-800">
         <h1 className="text-white text-2xl font-bold text-center">Create Account !</h1>
 
         <form onSubmit={handleSubmit}>
@@ -90,7 +102,7 @@ export default function Signup() {
                 name="firstName"
                 placeholder="First Name"
                 required
-                className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none"
+                className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none focus:border-orange-500"
               />
 
               <input
@@ -98,7 +110,7 @@ export default function Signup() {
                 name="lastName"
                 placeholder="Second Name"
                 required
-                className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none"
+                className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none focus:border-orange-500"
               />
             </div>
           </div>
@@ -108,18 +120,58 @@ export default function Signup() {
             <select
               name="role"
               required
-              defaultValue=""
-              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none"
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none cursor-pointer focus:border-orange-500"
             >
-              <option value="" disabled>
+              <option value="" disabled className="bg-[#2a2a2a] text-gray-400">
                 Select your role
               </option>
-              <option value="student">Student</option>
-              <option value="employer">Employer</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="faculty">Faculty</option>
+              <option value="student" className="bg-[#2a2a2a] text-white">
+                Student
+              </option>
+              <option value="faculty" className="bg-[#2a2a2a] text-white">
+                Faculty
+              </option>
+              <option value="employer" className="bg-[#2a2a2a] text-white">
+                Employer
+              </option>
+              <option value="supervisor" className="bg-[#2a2a2a] text-white">
+                Supervisor
+              </option>
+              <option value="coordinator" className="bg-[#2a2a2a] text-white">
+                Coordinator
+              </option>
+              <option value="admin" className="bg-[#2a2a2a] text-white">
+                Admin
+              </option>
             </select>
           </div>
+
+          {/* Role-specific optional fields */}
+          {selectedRole === "student" && (
+            <div className="mt-6">
+              <label className="block text-gray-300 mb-2">University Roll or ID Number</label>
+              <input
+                type="text"
+                name="universityId"
+                placeholder="e.g. 21BCE1001"
+                className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none focus:border-orange-500"
+              />
+            </div>
+          )}
+
+          {selectedRole === "faculty" && (
+            <div className="mt-6">
+              <label className="block text-gray-300 mb-2">Department</label>
+              <input
+                type="text"
+                name="department"
+                placeholder="e.g. Computer Science & Engineering"
+                className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none focus:border-orange-500"
+              />
+            </div>
+          )}
 
           <div className="mt-6">
             <label className="block text-gray-300 mb-2">Email</label>
@@ -128,7 +180,7 @@ export default function Signup() {
               name="email"
               placeholder="Enter your email"
               required
-              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none"
+              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none focus:border-orange-500"
             />
           </div>
 
@@ -139,7 +191,7 @@ export default function Signup() {
               placeholder="Password"
               required
               name="password"
-              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none"
+              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none focus:border-orange-500"
             />
           </div>
 
@@ -147,10 +199,10 @@ export default function Signup() {
             <label className="block text-gray-300 mb-2">Confirm Password</label>
             <input
               type="password"
-              placeholder="Password"
+              placeholder="Confirm Password"
               required
               name="confirmPassword"
-              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none"
+              className="w-full p-3 rounded-lg bg-[#2a2a2a] text-white border border-gray-700 outline-none focus:border-orange-500"
             />
           </div>
 

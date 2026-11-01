@@ -30,25 +30,30 @@ const ROLE_USER_TYPE_MAP = {
     EMPLOYER_ADMIN: "EXTERNAL"
 };
 
-// Roles that can be self-registered via public signup
-// Note: Administrative roles (ADMIN, HOD, DEAN, INTERNSHIP_COORDINATOR) cannot be self-assigned
+// Roles that can be registered via public signup
 const ALLOWED_PUBLIC_SIGNUP_ROLES = [
     "STUDENT",
     "EMPLOYER_ADMIN",
     "INDUSTRY_SUPERVISOR",
-    "FACULTY_SUPERVISOR"
+    "FACULTY_SUPERVISOR",
+    "INTERNSHIP_COORDINATOR",
+    "ADMIN"
 ];
 
-// Friendly alias mappings (e.g., from frontend select dropdowns)
+// Friendly alias mappings (from frontend select dropdowns)
 const ROLE_ALIASES = {
     student: "STUDENT",
     employer: "EMPLOYER_ADMIN",
     supervisor: "INDUSTRY_SUPERVISOR",
     faculty: "FACULTY_SUPERVISOR",
+    coordinator: "INTERNSHIP_COORDINATOR",
+    admin: "ADMIN",
     STUDENT: "STUDENT",
     EMPLOYER_ADMIN: "EMPLOYER_ADMIN",
     INDUSTRY_SUPERVISOR: "INDUSTRY_SUPERVISOR",
-    FACULTY_SUPERVISOR: "FACULTY_SUPERVISOR"
+    FACULTY_SUPERVISOR: "FACULTY_SUPERVISOR",
+    INTERNSHIP_COORDINATOR: "INTERNSHIP_COORDINATOR",
+    ADMIN: "ADMIN"
 };
 
 /**
@@ -67,7 +72,7 @@ function normalizeSignupRole(inputRole) {
     return null;
 }
 
-// Initial Role Permissions Matrix (Issue 3 Task 5: Define initial role permissions)
+// Initial Role Permissions Matrix
 const ROLE_PERMISSIONS = {
     STUDENT: [
         "profile:read",

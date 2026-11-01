@@ -43,10 +43,12 @@ export default function Login() {
 
       setSuccess("Login successful! Redirecting...");
 
-      // Save token and user in localStorage
+      // Save token and user in localStorage and cookies (for middleware route protection)
       if (data.token) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+        document.cookie = `token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+        document.cookie = `user_role=${data.user?.role || ""}; path=/; max-age=604800; SameSite=Lax`;
       }
 
       // Role-based routing

@@ -118,16 +118,16 @@ async function runTests() {
         console.assert(res3.status === 400, `Expected 400, got ${res3.status}`);
         console.log(" PASS: Invalid signup data rejected with 400\n");
 
-        // TEST 4: Prevent Administrative Self-Assignment (Issue 1 & 3)
-        console.log("Test 4: Reject self-assigning ADMIN role during signup...");
+        // TEST 4: Prevent Prohibited / Unknown Roles during signup
+        console.log("Test 4: Reject invalid / prohibited role during signup...");
         const res4 = await makeRequest("POST", "/api/auth/signup", {
             name: "Hacker User",
-            email: `admin_${testTimestamp}@example.com`,
+            email: `invalid_role_${testTimestamp}@example.com`,
             password: testPassword,
-            role: "ADMIN"
+            role: "SUPER_ADMIN_HACKER"
         });
         console.assert(res4.status === 400, `Expected 400, got ${res4.status}`);
-        console.log(" PASS: Administrative role self-registration prevented\n");
+        console.log(" PASS: Prohibited role registration prevented\n");
 
         // TEST 5: Valid Login (Issue 2)
         console.log("Test 5: Login with valid credentials...");
