@@ -29,21 +29,39 @@ const {
     SafetyDeclaration
 } = models;
 
+const REQUIRED_TEST_DB_NAME = "internship_management_test";
+
 async function runDatabaseIntegrationTests() {
     console.log("============================================================");
     console.log(" TRACK C: DATABASE PERSISTENCE & INTEGRATION TEST SUITE     ");
     console.log("============================================================");
 
-    const mongoUri = process.env.MONGODB_TEST_URI || process.env.MONGODB_URI;
+    // -------------------------------------------------------------------------
+    // Safety Check 1: Exclusively require MONGODB_TEST_URI (No fallback to MONGODB_URI)
+    // -------------------------------------------------------------------------
+    const mongoTestUri = process.env.MONGODB_TEST_URI;
 
-    if (!mongoUri) {
-        console.log("\n[Notice] No MONGODB_URI or MONGODB_TEST_URI configured in environment.");
-        console.log("To run live database integration tests against MongoDB Atlas or a local instance:");
-        console.log("  1. Create or update backend/.env with your URI:");
-        console.log("     MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/<database>?retryWrites=true&w=majority");
-        console.log("  2. Re-run: npm run test:integration");
-        console.log("\nSkipping live database integration tests (Mongoose schema validation tests passed).");
-        return;
+    if (!mongoTestUri || mongoTestUri.trim() === "") {
+        console.error("\n❌ DATABASE SAFETY ERROR: MONGODB_TEST_URI is missing or empty.");
+        console.error("Integration tests CANNOT be run against production/development databases.");
+        console.error("To run integration tests safely, define MONGODB_TEST_URI in backend/.env:");
+        console.error(`  MONGODB_TEST_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/${REQUIRED_TEST_DB_NAME}?retryWrites=true&w=majority\n`);
+        process.exit(1);
+    }
+
+    // -------------------------------------------------------------------------
+    // Safety Check 2: Pre-connection URI inspection
+    // -------------------------------------------------------------------------
+    try {
+        const uriObj = new URL(mongoTestUri);
+        const specifiedDb = uriObj.pathname ? uriObj.pathname.replace(/^\//, "").split("?")[0] : "";
+        if (specifiedDb && specifiedDb !== REQUIRED_TEST_DB_NAME) {
+            console.error(`\n❌ PRE-CONNECT SAFETY ABORT: URI specifies database '${specifiedDb}', but '${REQUIRED_TEST_DB_NAME}' is strictly required.`);
+            console.error("Aborting immediately without attempting connection.");
+            process.exit(1);
+        }
+    } catch (parseErr) {
+        // Fallback for non-standard connection strings; verified post-connection
     }
 
     process.env.NODE_ENV = "test";
@@ -74,19 +92,36 @@ async function runDatabaseIntegrationTests() {
     };
 
     let stepPassed = 0;
+    let isDbVerified = false;
 
     try {
         // ---------------------------------------------------------------------
-        // Step 1: Connect to Database
+        // Step 1: Connect to Dedicated Test Database
         // ---------------------------------------------------------------------
-        console.log("\n[Step 1] Connecting to MongoDB Database...");
-        await connectDB(mongoUri);
+        console.log("\n[Step 1] Connecting to Dedicated Test Database via MONGODB_TEST_URI...");
+        await connectDB(mongoTestUri);
         assert.strictEqual(mongoose.connection.readyState, 1, "Mongoose connection readyState should be 1 (connected)");
-        console.log(`  ✓ Connected to host: ${mongoose.connection.host}, database: ${mongoose.connection.name}`);
+
+        // ---------------------------------------------------------------------
+        // Safety Check 3: Post-connection database name verification
+        // ---------------------------------------------------------------------
+        const connectedDbName = mongoose.connection.name;
+        console.log(`  ✓ Connected to host: ${mongoose.connection.host}`);
+        console.log(`  ✓ Connected database name: '${connectedDbName}'`);
+
+        if (connectedDbName !== REQUIRED_TEST_DB_NAME) {
+            console.error(`\n❌ DATABASE SAFETY ABORT: Connected database '${connectedDbName}' does not match required '${REQUIRED_TEST_DB_NAME}'.`);
+            console.error("Aborting immediately BEFORE any index synchronization, document creation, or modification.");
+            await mongoose.connection.close();
+            process.exit(1);
+        }
+
+        isDbVerified = true;
+        console.log(`  ✓ Safety Check Passed: Confirmed connection to dedicated test database '${REQUIRED_TEST_DB_NAME}'.`);
         stepPassed++;
 
         // ---------------------------------------------------------------------
-        // Step 2: Ensure/Sync Indexes
+        // Step 2: Ensure/Sync Indexes on Verified Test Database
         // ---------------------------------------------------------------------
         console.log("\n[Step 2] Synchronizing Indexes for Unique Constraints...");
         await Promise.all([
@@ -104,7 +139,7 @@ async function runDatabaseIntegrationTests() {
         // ---------------------------------------------------------------------
         console.log("\n[Step 3] Executing End-to-End Internship Lifecycle CRUD & Relations...");
 
-        // 3.1 Create Users (Student, Faculty Supervisor, Industry Supervisor, Admin)
+        // 3.1 Create Users (Student, Faculty Supervisor, Industry Supervisor)
         const student = await User.create({
             name: `Test Student ${testSessionTag}`,
             email: `student_${testSessionTag}@univ.edu`,
@@ -355,8 +390,9 @@ async function runDatabaseIntegrationTests() {
 
         // 5.1 Duplicate User email
         let dupEmailCaught = false;
+        let dupUser = null;
         try {
-            await User.create({
+            dupUser = await User.create({
                 name: "Duplicate Email User",
                 email: student.email,
                 role: "STUDENT",
@@ -366,13 +402,15 @@ async function runDatabaseIntegrationTests() {
         } catch (e) {
             dupEmailCaught = e.code === 11000;
         }
+        if (dupUser) createdDocIds.users.push(dupUser._id);
         assert.ok(dupEmailCaught, "Expected E11000 duplicate key error on duplicate User email");
         console.log("  ✓ Duplicate User email correctly rejected by MongoDB unique index (E11000)");
 
         // 5.2 Duplicate Application (same student applying to same opportunity)
         let dupAppCaught = false;
+        let dupApp = null;
         try {
-            await Application.create({
+            dupApp = await Application.create({
                 opportunityId: opportunity._id,
                 studentId: student._id,
                 status: "APPLIED"
@@ -380,13 +418,15 @@ async function runDatabaseIntegrationTests() {
         } catch (e) {
             dupAppCaught = e.code === 11000;
         }
+        if (dupApp) createdDocIds.applications.push(dupApp._id);
         assert.ok(dupAppCaught, "Expected E11000 duplicate key error on duplicate Application compound index");
         console.log("  ✓ Duplicate Application correctly rejected by compound unique index (E11000)");
 
         // 5.3 Duplicate Certificate Number
         let dupCertCaught = false;
+        let dupCert = null;
         try {
-            await Certificate.create({
+            dupCert = await Certificate.create({
                 studentId: student._id,
                 agreementId: agreement._id,
                 certificateNumber: certNumber
@@ -394,6 +434,7 @@ async function runDatabaseIntegrationTests() {
         } catch (e) {
             dupCertCaught = e.code === 11000;
         }
+        if (dupCert) createdDocIds.certificates.push(dupCert._id);
         assert.ok(dupCertCaught, "Expected E11000 duplicate key error on duplicate certificateNumber");
         console.log("  ✓ Duplicate Certificate number correctly rejected by unique index (E11000)");
         stepPassed++;
@@ -433,37 +474,39 @@ async function runDatabaseIntegrationTests() {
         process.exitCode = 1;
     } finally {
         // ---------------------------------------------------------------------
-        // Step 7: Clean Up Isolated Test Records
+        // Step 7: Safe Cleanup of Isolated Test Records
         // ---------------------------------------------------------------------
-        console.log("\n[Cleanup] Cleaning up isolated test artifacts...");
-        try {
-            await Promise.all([
-                User.deleteMany({ _id: { $in: createdDocIds.users } }),
-                Employer.deleteMany({ _id: { $in: createdDocIds.employers } }),
-                Opportunity.deleteMany({ _id: { $in: createdDocIds.opportunities } }),
-                Application.deleteMany({ _id: { $in: createdDocIds.applications } }),
-                Offer.deleteMany({ _id: { $in: createdDocIds.offers } }),
-                Agreement.deleteMany({ _id: { $in: createdDocIds.agreements } }),
-                HourLog.deleteMany({ _id: { $in: createdDocIds.hourLogs } }),
-                HourVerification.deleteMany({ _id: { $in: createdDocIds.hourVerifications } }),
-                Task.deleteMany({ _id: { $in: createdDocIds.tasks } }),
-                WorkPlan.deleteMany({ _id: { $in: createdDocIds.workPlans } }),
-                Evaluation.deleteMany({ _id: { $in: createdDocIds.evaluations } }),
-                Rubric.deleteMany({ _id: { $in: createdDocIds.rubrics } }),
-                CreditMapping.deleteMany({ _id: { $in: createdDocIds.creditMappings } }),
-                CreditApproval.deleteMany({ _id: { $in: createdDocIds.creditApprovals } }),
-                Certificate.deleteMany({ _id: { $in: createdDocIds.certificates } }),
-                Incident.deleteMany({ _id: { $in: createdDocIds.incidents } }),
-                AuditEntry.deleteMany({ _id: { $in: createdDocIds.auditEntries } }),
-                EmployerVerification.deleteMany({ _id: { $in: createdDocIds.employerVerifications } }),
-                AgreementTemplate.deleteMany({ _id: { $in: createdDocIds.agreementTemplates } }),
-                Signature.deleteMany({ _id: { $in: createdDocIds.signatures } }),
-                InsuranceRecord.deleteMany({ _id: { $in: createdDocIds.insuranceRecords } }),
-                SafetyDeclaration.deleteMany({ _id: { $in: createdDocIds.safetyDeclarations } })
-            ]);
-            console.log("  ✓ All temporary test records removed successfully.");
-        } catch (cleanupErr) {
-            console.error("  Warning: cleanup error:", cleanupErr.message);
+        if (mongoose.connection.readyState !== 0 && isDbVerified) {
+            console.log("\n[Cleanup] Cleaning up isolated test artifacts...");
+            try {
+                await Promise.all([
+                    User.deleteMany({ _id: { $in: createdDocIds.users } }),
+                    Employer.deleteMany({ _id: { $in: createdDocIds.employers } }),
+                    Opportunity.deleteMany({ _id: { $in: createdDocIds.opportunities } }),
+                    Application.deleteMany({ _id: { $in: createdDocIds.applications } }),
+                    Offer.deleteMany({ _id: { $in: createdDocIds.offers } }),
+                    Agreement.deleteMany({ _id: { $in: createdDocIds.agreements } }),
+                    HourLog.deleteMany({ _id: { $in: createdDocIds.hourLogs } }),
+                    HourVerification.deleteMany({ _id: { $in: createdDocIds.hourVerifications } }),
+                    Task.deleteMany({ _id: { $in: createdDocIds.tasks } }),
+                    WorkPlan.deleteMany({ _id: { $in: createdDocIds.workPlans } }),
+                    Evaluation.deleteMany({ _id: { $in: createdDocIds.evaluations } }),
+                    Rubric.deleteMany({ _id: { $in: createdDocIds.rubrics } }),
+                    CreditMapping.deleteMany({ _id: { $in: createdDocIds.creditMappings } }),
+                    CreditApproval.deleteMany({ _id: { $in: createdDocIds.creditApprovals } }),
+                    Certificate.deleteMany({ _id: { $in: createdDocIds.certificates } }),
+                    Incident.deleteMany({ _id: { $in: createdDocIds.incidents } }),
+                    AuditEntry.deleteMany({ _id: { $in: createdDocIds.auditEntries } }),
+                    EmployerVerification.deleteMany({ _id: { $in: createdDocIds.employerVerifications } }),
+                    AgreementTemplate.deleteMany({ _id: { $in: createdDocIds.agreementTemplates } }),
+                    Signature.deleteMany({ _id: { $in: createdDocIds.signatures } }),
+                    InsuranceRecord.deleteMany({ _id: { $in: createdDocIds.insuranceRecords } }),
+                    SafetyDeclaration.deleteMany({ _id: { $in: createdDocIds.safetyDeclarations } })
+                ]);
+                console.log("  ✓ All temporary test records removed successfully.");
+            } catch (cleanupErr) {
+                console.error("  Warning: cleanup error:", cleanupErr.message);
+            }
         }
 
         if (mongoose.connection.readyState !== 0) {
