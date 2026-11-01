@@ -55,6 +55,12 @@ const agreementSchema = new mongoose.Schema(
     }
 );
 
-const Agreement = mongoose.model("Agreement", agreementSchema);
+agreementSchema.index({ offerId: 1 }, { unique: true });
+agreementSchema.index({ studentId: 1 });
+agreementSchema.index({ employerId: 1 });
+agreementSchema.index({ facultySupervisorId: 1 });
+agreementSchema.index({ status: 1 });
+
+const Agreement = mongoose.models.Agreement || mongoose.model("Agreement", agreementSchema);
 
 module.exports = Agreement;

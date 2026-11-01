@@ -60,6 +60,8 @@ const rubricSchema = new mongoose.Schema(
     }
 );
 
-const Rubric = mongoose.model("Rubric", rubricSchema);
+rubricSchema.index({ isActive: 1 });
+
+const Rubric = mongoose.models.Rubric || mongoose.model("Rubric", rubricSchema);
 
 module.exports = Rubric;

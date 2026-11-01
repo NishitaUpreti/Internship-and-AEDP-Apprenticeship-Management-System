@@ -38,6 +38,9 @@ const taskSchema = new mongoose.Schema(
     }
 );
 
-const Task = mongoose.model("Task", taskSchema);
+taskSchema.index({ agreementId: 1 });
+taskSchema.index({ status: 1 });
+
+const Task = mongoose.models.Task || mongoose.model("Task", taskSchema);
 
 module.exports = Task;

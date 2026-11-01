@@ -44,7 +44,10 @@ const employerVerificationSchema = new mongoose.Schema(
     }
 );
 
-const EmployerVerification = mongoose.model(
+employerVerificationSchema.index({ employerId: 1 });
+employerVerificationSchema.index({ verifiedBy: 1 });
+
+const EmployerVerification = mongoose.models.EmployerVerification || mongoose.model(
     "EmployerVerification",
     employerVerificationSchema
 );

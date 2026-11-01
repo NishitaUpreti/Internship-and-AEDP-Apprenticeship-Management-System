@@ -39,7 +39,10 @@ const hourVerificationSchema = new mongoose.Schema(
     }
 );
 
-const HourVerification = mongoose.model(
+hourVerificationSchema.index({ hourLogId: 1 });
+hourVerificationSchema.index({ supervisorId: 1 });
+
+const HourVerification = mongoose.models.HourVerification || mongoose.model(
     "HourVerification",
     hourVerificationSchema
 );

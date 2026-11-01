@@ -37,6 +37,10 @@ const auditEntrySchema = new mongoose.Schema(
     }
 );
 
-const AuditEntry = mongoose.model("AuditEntry", auditEntrySchema);
+auditEntrySchema.index({ entityType: 1, entityId: 1 });
+auditEntrySchema.index({ actorId: 1 });
+auditEntrySchema.index({ createdAt: -1 });
+
+const AuditEntry = mongoose.models.AuditEntry || mongoose.model("AuditEntry", auditEntrySchema);
 
 module.exports = AuditEntry;

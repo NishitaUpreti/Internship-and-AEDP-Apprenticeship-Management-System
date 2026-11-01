@@ -49,6 +49,10 @@ const evaluationSchema = new mongoose.Schema(
     }
 );
 
-const Evaluation = mongoose.model("Evaluation", evaluationSchema);
+evaluationSchema.index({ agreementId: 1 });
+evaluationSchema.index({ studentId: 1 });
+evaluationSchema.index({ evaluatorId: 1 });
+
+const Evaluation = mongoose.models.Evaluation || mongoose.model("Evaluation", evaluationSchema);
 
 module.exports = Evaluation;

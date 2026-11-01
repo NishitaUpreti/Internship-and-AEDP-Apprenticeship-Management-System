@@ -51,6 +51,10 @@ const hourLogSchema = new mongoose.Schema(
     }
 );
 
-const HourLog = mongoose.model("HourLog", hourLogSchema);
+hourLogSchema.index({ studentId: 1, agreementId: 1 });
+hourLogSchema.index({ agreementId: 1, date: 1 });
+hourLogSchema.index({ status: 1 });
+
+const HourLog = mongoose.models.HourLog || mongoose.model("HourLog", hourLogSchema);
 
 module.exports = HourLog;

@@ -55,7 +55,11 @@ const safetyDeclarationSchema = new mongoose.Schema(
     }
 );
 
-const SafetyDeclaration = mongoose.model(
+safetyDeclarationSchema.index({ agreementId: 1 });
+safetyDeclarationSchema.index({ studentId: 1 });
+safetyDeclarationSchema.index({ status: 1 });
+
+const SafetyDeclaration = mongoose.models.SafetyDeclaration || mongoose.model(
     "SafetyDeclaration",
     safetyDeclarationSchema
 );

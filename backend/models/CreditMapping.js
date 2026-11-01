@@ -38,6 +38,8 @@ const creditMappingSchema = new mongoose.Schema(
     }
 );
 
-const CreditMapping = mongoose.model("CreditMapping", creditMappingSchema);
+creditMappingSchema.index({ isActive: 1 });
+
+const CreditMapping = mongoose.models.CreditMapping || mongoose.model("CreditMapping", creditMappingSchema);
 
 module.exports = CreditMapping;

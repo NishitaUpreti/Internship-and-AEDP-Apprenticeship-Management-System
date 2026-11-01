@@ -61,7 +61,11 @@ const creditApprovalSchema = new mongoose.Schema(
     }
 );
 
-const CreditApproval = mongoose.model(
+creditApprovalSchema.index({ agreementId: 1 });
+creditApprovalSchema.index({ studentId: 1 });
+creditApprovalSchema.index({ status: 1 });
+
+const CreditApproval = mongoose.models.CreditApproval || mongoose.model(
     "CreditApproval",
     creditApprovalSchema
 );

@@ -43,6 +43,8 @@ const employerSchema = new mongoose.Schema(
     }
 );
 
-const Employer = mongoose.model("Employer", employerSchema);
+employerSchema.index({ verificationStatus: 1 });
+
+const Employer = mongoose.models.Employer || mongoose.model("Employer", employerSchema);
 
 module.exports = Employer;

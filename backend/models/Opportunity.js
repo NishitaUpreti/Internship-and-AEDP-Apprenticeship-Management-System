@@ -65,6 +65,9 @@ const opportunitySchema = new mongoose.Schema(
     }
 );
 
-const Opportunity = mongoose.model("Opportunity", opportunitySchema);
+opportunitySchema.index({ employerId: 1 });
+opportunitySchema.index({ status: 1 });
+
+const Opportunity = mongoose.models.Opportunity || mongoose.model("Opportunity", opportunitySchema);
 
 module.exports = Opportunity;

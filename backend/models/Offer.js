@@ -52,6 +52,11 @@ const offerSchema = new mongoose.Schema(
     }
 );
 
-const Offer = mongoose.model("Offer", offerSchema);
+offerSchema.index({ applicationId: 1 }, { unique: true });
+offerSchema.index({ studentId: 1 });
+offerSchema.index({ opportunityId: 1 });
+offerSchema.index({ employerId: 1 });
+
+const Offer = mongoose.models.Offer || mongoose.model("Offer", offerSchema);
 
 module.exports = Offer;

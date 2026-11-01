@@ -50,7 +50,10 @@ const agreementTemplateSchema = new mongoose.Schema(
     }
 );
 
-const AgreementTemplate = mongoose.model(
+agreementTemplateSchema.index({ name: 1, version: 1 });
+agreementTemplateSchema.index({ status: 1 });
+
+const AgreementTemplate = mongoose.models.AgreementTemplate || mongoose.model(
     "AgreementTemplate",
     agreementTemplateSchema
 );

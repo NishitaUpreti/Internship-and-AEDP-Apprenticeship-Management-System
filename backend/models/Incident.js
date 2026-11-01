@@ -52,6 +52,9 @@ const incidentSchema = new mongoose.Schema(
     }
 );
 
-const Incident = mongoose.model("Incident", incidentSchema);
+incidentSchema.index({ studentId: 1 });
+incidentSchema.index({ status: 1 });
+
+const Incident = mongoose.models.Incident || mongoose.model("Incident", incidentSchema);
 
 module.exports = Incident;

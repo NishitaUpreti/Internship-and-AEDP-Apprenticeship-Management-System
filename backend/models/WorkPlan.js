@@ -60,6 +60,8 @@ const workPlanSchema = new mongoose.Schema(
     }
 );
 
-const WorkPlan = mongoose.model("WorkPlan", workPlanSchema);
+workPlanSchema.index({ agreementId: 1 });
+
+const WorkPlan = mongoose.models.WorkPlan || mongoose.model("WorkPlan", workPlanSchema);
 
 module.exports = WorkPlan;

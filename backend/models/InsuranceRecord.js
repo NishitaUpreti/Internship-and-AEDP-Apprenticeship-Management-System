@@ -63,7 +63,11 @@ const insuranceRecordSchema = new mongoose.Schema(
     }
 );
 
-const InsuranceRecord = mongoose.model(
+insuranceRecordSchema.index({ agreementId: 1 });
+insuranceRecordSchema.index({ studentId: 1 });
+insuranceRecordSchema.index({ status: 1 });
+
+const InsuranceRecord = mongoose.models.InsuranceRecord || mongoose.model(
     "InsuranceRecord",
     insuranceRecordSchema
 );

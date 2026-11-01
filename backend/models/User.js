@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const USER_ROLES = [
     "STUDENT",
@@ -93,6 +94,22 @@ userSchema.index({ role: 1 });
 userSchema.index({ userType: 1 });
 userSchema.index({ universityId: 1 });
 
-const User = mongoose.model("User", userSchema);
+// Method to verify password against stored passwordHash
+userSchema.methods.comparePassword = async function (candidatePassword) {
+    if (!this.passwordHash) {
+        throw new Error("Password hash not selected in query");
+    }
+    return bcrypt.compare(candidatePassword, this.passwordHash);
+};
+
+// Safe JSON serialization: remove passwordHash and internal fields
+userSchema.methods.toJSON = function () {
+    const userObj = this.toObject();
+    delete userObj.passwordHash;
+    delete userObj.__v;
+    return userObj;
+};
+
+const User = mongoose.models.User || mongoose.model("User", userSchema);
 
 module.exports = User;
