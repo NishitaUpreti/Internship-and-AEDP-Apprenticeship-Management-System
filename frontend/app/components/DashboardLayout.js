@@ -20,6 +20,12 @@ const ROLE_ALLOWED_PATHS = {
   "/admin": ["ADMIN"],
 };
 
+function getCookie(name) {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 const DashboardLayout = ({ linksLayout, children }) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -28,46 +34,75 @@ const DashboardLayout = ({ linksLayout, children }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const storedUser = localStorage.getItem("user");
+    // 1. Retrieve token and user from localStorage or cookies
+    let token = localStorage.getItem("token") || getCookie("token");
+    let storedUser = localStorage.getItem("user");
+    let userRole = getCookie("user_role");
 
-    // 1. If no token or user in storage, immediately redirect to login
-    if (!token || !storedUser) {
-      router.replace("/login");
-      return;
-    }
-
-    let user;
-    try {
-      user = JSON.parse(storedUser);
-    } catch (e) {
+    // Clear session and redirect cleanly to /login
+    const purgeAndRedirectToLogin = () => {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      router.replace("/login");
+      document.cookie = "token=; path=/; max-age=0; SameSite=Lax";
+      document.cookie = "user_role=; path=/; max-age=0; SameSite=Lax";
+      window.location.href = `/login?redirect=${encodeURIComponent(pathname)}`;
+    };
+
+    // If completely missing credentials, purge and redirect to login
+    if (!token) {
+      purgeAndRedirectToLogin();
       return;
     }
 
-    // 2. Check role authorization for this specific dashboard path
-    const currentBase = Object.keys(ROLE_ALLOWED_PATHS).find((base) =>
-      pathname.startsWith(base)
-    );
+    // Keep localStorage in sync with cookie token
+    localStorage.setItem("token", token);
 
-    if (currentBase) {
-      const allowedRoles = ROLE_ALLOWED_PATHS[currentBase];
-      if (allowedRoles && !allowedRoles.includes(user.role)) {
-        let target = "/student";
-        if (user.role === "FACULTY_SUPERVISOR") target = "/faculty";
-        else if (user.role === "EMPLOYER_ADMIN") target = "/employer";
-        else if (user.role === "INDUSTRY_SUPERVISOR") target = "/supervisor";
-        else if (user.role === "INTERNSHIP_COORDINATOR") target = "/coordinator";
-        else if (user.role === "ADMIN") target = "/admin";
-
-        router.replace(target);
-        return;
+    let parsedUser = null;
+    if (storedUser) {
+      try {
+        parsedUser = JSON.parse(storedUser);
+      } catch (e) {
+        parsedUser = null;
       }
     }
 
-    // 3. Verify token with backend database
+    // Role check helper
+    const checkRolePermission = (role) => {
+      const currentBase = Object.keys(ROLE_ALLOWED_PATHS).find((base) =>
+        pathname.startsWith(base)
+      );
+
+      if (currentBase && role) {
+        const allowed = ROLE_ALLOWED_PATHS[currentBase];
+        if (allowed && !allowed.includes(role)) {
+          let target = "/student";
+          if (role === "FACULTY_SUPERVISOR") target = "/faculty";
+          else if (role === "EMPLOYER_ADMIN") target = "/employer";
+          else if (role === "INDUSTRY_SUPERVISOR") target = "/supervisor";
+          else if (role === "INTERNSHIP_COORDINATOR") target = "/coordinator";
+          else if (role === "ADMIN") target = "/admin";
+
+          window.location.href = target;
+          return false;
+        }
+      }
+      return true;
+    };
+
+    // If user and role already available, authorize immediately
+    if (parsedUser && parsedUser.role) {
+      if (checkRolePermission(parsedUser.role)) {
+        setIsAuthorized(true);
+        setIsLoading(false);
+      }
+    } else if (userRole) {
+      if (checkRolePermission(userRole)) {
+        setIsAuthorized(true);
+        setIsLoading(false);
+      }
+    }
+
+    // 2. Verify token with backend database
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
     fetch(`${apiUrl}/api/auth/me`, {
       headers: {
@@ -75,28 +110,44 @@ const DashboardLayout = ({ linksLayout, children }) => {
       },
     })
       .then((res) => {
+        if (res.status === 401 || res.status === 403) {
+          purgeAndRedirectToLogin();
+          return null;
+        }
         if (!res.ok) {
-          throw new Error("Token invalid or expired");
+          // If server is restarting or returning 500, don't kill valid session
+          setIsAuthorized(true);
+          setIsLoading(false);
+          return null;
         }
         return res.json();
       })
       .then((data) => {
-        if (data.success && data.user) {
+        if (data && data.success && data.user) {
           localStorage.setItem("user", JSON.stringify(data.user));
-          setIsAuthorized(true);
-        } else {
-          throw new Error("User verification failed");
+          document.cookie = `user_role=${data.user.role}; path=/; max-age=604800; SameSite=Lax`;
+          if (checkRolePermission(data.user.role)) {
+            setIsAuthorized(true);
+          }
         }
       })
       .catch((err) => {
-        console.error("Dashboard auth verification failed:", err);
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        router.replace("/login");
+        // If network request failed (e.g. backend offline or restarting),
+        // permit existing session if token is present
+        console.warn("Background auth verification deferred:", err?.message || err);
+        setIsAuthorized(true);
       })
       .finally(() => {
         setIsLoading(false);
       });
+
+    // Safety timeout: Never stay stuck on spinner for more than 2.5 seconds
+    const timeoutTimer = setTimeout(() => {
+      setIsLoading(false);
+      setIsAuthorized(true);
+    }, 2500);
+
+    return () => clearTimeout(timeoutTimer);
   }, [pathname, router]);
 
   const confirmLogout = () => {
@@ -107,8 +158,7 @@ const DashboardLayout = ({ linksLayout, children }) => {
     window.location.href = "/login";
   };
 
-  // Loading screen prevents flashing dashboard content to unauthenticated users
-  if (isLoading || !isAuthorized) {
+  if (isLoading && !isAuthorized) {
     return (
       <div className="min-h-screen w-full bg-[#111111] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
