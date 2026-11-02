@@ -5,6 +5,7 @@ const studentRoutes = require('./studentRoutes');
 const employerRoutes = require('./employerRoutes');
 const opportunityRoutes = require('./opportunityRoutes');
 const applicationRoutes = require('./applicationRoutes');
+const hourRoutes = require('./hourRoutes');
 
 // Mount Authentication & Authorization routes
 router.use('/auth', authRoutes);
@@ -20,6 +21,9 @@ router.use('/opportunities', opportunityRoutes);
 
 // Mount Application routes (Module 2)
 router.use('/applications', applicationRoutes);
+
+// Mount Hour Logging & Verification routes (Milestone 3)
+router.use('/hours', hourRoutes);
 
 // Test API endpoint for frontend communication
 router.get('/test', (req, res) => {

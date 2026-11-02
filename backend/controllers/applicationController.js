@@ -243,9 +243,58 @@ async function updateApplicationStatus(req, res) {
     }
 }
 
+/**
+ * PUT /api/applications/:id/accept
+ * Student accepts an extended offer
+ */
+async function acceptOffer(req, res) {
+    try {
+        const { id } = req.params;
+        const studentId = req.user._id;
+
+        const application = await Application.findOne({ _id: id, studentId });
+        if (!application) {
+            return res.status(404).json({
+                success: false,
+                message: "Application not found or unauthorized."
+            });
+        }
+
+        if (application.status !== "OFFERED") {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot accept offer. Current status is ${application.status}.`
+            });
+        }
+
+        application.status = "ACCEPTED";
+        await application.save();
+
+        // Also update Offer record if exists
+        await Offer.findOneAndUpdate(
+            { applicationId: application._id },
+            { status: "ACCEPTED", acceptedAt: new Date() }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Offer accepted successfully! Your placement is now active and ready for hour logging.",
+            application
+        });
+    } catch (error) {
+        console.error("acceptOffer error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to accept offer.",
+            error: error.message
+        });
+    }
+}
+
 module.exports = {
     submitApplication,
     getMyApplications,
     getEmployerApplications,
-    updateApplicationStatus
+    updateApplicationStatus,
+    acceptOffer
 };

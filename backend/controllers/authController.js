@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const Employer = require("../models/Employer");
 const { generateToken } = require("../utils/jwt");
 const {
     ROLE_USER_TYPE_MAP,
@@ -25,7 +26,8 @@ async function signup(req, res) {
             confirmPassword,
             role,
             universityId,
-            department
+            department,
+            employerId
         } = req.body;
 
         // Resolve name if split into firstName / lastName
@@ -108,6 +110,16 @@ async function signup(req, res) {
             });
         }
 
+        // If Industry Supervisor, validate employer selection
+        let validatedEmployerId = null;
+        let linkedEmployer = null;
+        if (assignedRole === "INDUSTRY_SUPERVISOR" && employerId) {
+            linkedEmployer = await Employer.findById(employerId);
+            if (linkedEmployer) {
+                validatedEmployerId = linkedEmployer._id;
+            }
+        }
+
         // Hash the password securely
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
@@ -122,6 +134,7 @@ async function signup(req, res) {
             passwordHash,
             role: assignedRole,
             userType,
+            employerId: validatedEmployerId,
             universityId: universityId ? universityId.trim() : undefined,
             department: department ? department.trim() : undefined,
             isActive: true
@@ -130,11 +143,19 @@ async function signup(req, res) {
         // Generate authentication token
         const token = generateToken(newUser);
 
+        const userObj = newUser.toJSON();
+        if (linkedEmployer) {
+            userObj.employer = {
+                _id: linkedEmployer._id,
+                organisationName: linkedEmployer.organisationName
+            };
+        }
+
         return res.status(201).json({
             success: true,
             message: "User registered successfully.",
             token,
-            user: newUser.toJSON()
+            user: userObj
         });
     } catch (error) {
         console.error("Signup error:", error);
@@ -165,7 +186,9 @@ async function login(req, res) {
         const normalizedEmail = email.toLowerCase().trim();
 
         // Find user by email, explicitly including passwordHash for verification
-        const user = await User.findOne({ email: normalizedEmail }).select("+passwordHash");
+        const user = await User.findOne({ email: normalizedEmail })
+            .select("+passwordHash")
+            .populate("employerId", "organisationName website");
 
         // Invalid credentials if user not found
         if (!user) {
@@ -199,11 +222,24 @@ async function login(req, res) {
         // Generate authentication token
         const token = generateToken(user);
 
+        const userObj = user.toJSON();
+
+        // If employer admin, attach employer profile if found
+        if (user.role === "EMPLOYER_ADMIN") {
+            const employer = await Employer.findOne({ primaryAdminId: user._id });
+            if (employer) {
+                userObj.employer = {
+                    _id: employer._id,
+                    organisationName: employer.organisationName
+                };
+            }
+        }
+
         return res.status(200).json({
             success: true,
             message: "Login successful.",
             token,
-            user: user.toJSON()
+            user: userObj
         });
     } catch (error) {
         console.error("Login error:", error);
@@ -221,12 +257,23 @@ async function login(req, res) {
  */
 async function getMe(req, res) {
     try {
-        const user = req.user;
+        const user = await User.findById(req.user._id).populate("employerId", "organisationName website");
         const permissions = ROLE_PERMISSIONS[user.role] || [];
+
+        const userObj = user.toJSON();
+        if (user.role === "EMPLOYER_ADMIN") {
+            const employer = await Employer.findOne({ primaryAdminId: user._id });
+            if (employer) {
+                userObj.employer = {
+                    _id: employer._id,
+                    organisationName: employer.organisationName
+                };
+            }
+        }
 
         return res.status(200).json({
             success: true,
-            user: user.toJSON(),
+            user: userObj,
             permissions
         });
     } catch (error) {

@@ -4,9 +4,13 @@ const {
     getMyEmployerProfile,
     updateMyEmployerProfile,
     getEmployerDashboard,
+    getPublicEmployersList,
     getEmployerById
 } = require("../controllers/employerController");
 const { authenticate, authorize } = require("../middleware/auth");
+
+// Public list for supervisor onboarding / select dropdowns (MUST be before /:id)
+router.get("/public/list", getPublicEmployersList);
 
 // Employer Admin profile routes
 router.get("/me", authenticate, authorize("EMPLOYER_ADMIN", "ADMIN"), getMyEmployerProfile);

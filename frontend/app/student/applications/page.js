@@ -12,12 +12,21 @@ import {
   AlertCircle,
   BriefcaseBusiness,
   Plus,
+  ArrowRight,
+  ShieldCheck
 } from "lucide-react";
 import StatCard from "../../components/StatCard";
 
 export default function StudentApplicationsPage() {
   const [applications, setApplications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [acceptingId, setAcceptingId] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   useEffect(() => {
     fetchApplications();
@@ -46,6 +55,36 @@ export default function StudentApplicationsPage() {
     }
   };
 
+  const handleAcceptOffer = async (appId) => {
+    try {
+      setAcceptingId(appId);
+      const token = localStorage.getItem("token");
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+      const res = await fetch(`${apiUrl}/api/applications/${appId}/accept`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast("Placement Offer Accepted! Your active workspace is ready. You can now log internship hours.");
+        setApplications((prev) =>
+          prev.map((a) => (a._id === appId ? { ...a, status: "ACCEPTED" } : a))
+        );
+      } else {
+        showToast(data.message || "Failed to accept offer.", "error");
+      }
+    } catch (err) {
+      showToast("Network error accepting offer.", "error");
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case "SHORTLISTED":
@@ -63,7 +102,7 @@ export default function StudentApplicationsPage() {
       case "ACCEPTED":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-            <CheckCircle2 size={13} /> Offer Accepted
+            <ShieldCheck size={13} /> Active Placement (Accepted)
           </span>
         );
       case "REJECTED":
@@ -95,6 +134,18 @@ export default function StudentApplicationsPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl text-white shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+            toast.type === "error" ? "bg-red-600" : "bg-emerald-600"
+          }`}
+        >
+          {toast.type === "error" ? <AlertCircle className="w-5 h-5 shrink-0" /> : <CheckCircle2 className="w-5 h-5 shrink-0" />}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-800 pb-6">
         <div>
@@ -105,13 +156,22 @@ export default function StudentApplicationsPage() {
             Real-time status updates for all your submitted AEDP internship and apprenticeship applications.
           </p>
         </div>
-        <Link
-          href="/student/opportunities"
-          className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-orange-600/20"
-        >
-          <Plus size={15} />
-          <span>Browse More Opportunities</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/student/log-hours"
+            className="flex items-center gap-2 px-4 py-2 bg-[#222222] hover:bg-[#2b2b2b] text-gray-300 hover:text-white rounded-xl text-xs font-semibold border border-gray-700 transition"
+          >
+            <Clock size={15} />
+            <span>Hour Logging</span>
+          </Link>
+          <Link
+            href="/student/opportunities"
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-orange-600/20"
+          >
+            <Plus size={15} />
+            <span>Browse More Opportunities</span>
+          </Link>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -173,6 +233,9 @@ export default function StudentApplicationsPage() {
             {applications.map((app) => {
               const opp = app.opportunityId;
               const employer = opp?.employerId;
+              const isOffering = app.status === "OFFERED";
+              const isAccepted = app.status === "ACCEPTED";
+              const isAccepting = acceptingId === app._id;
 
               return (
                 <div
@@ -235,8 +298,40 @@ export default function StudentApplicationsPage() {
                     </div>
                   </div>
 
-                  {/* Status */}
-                  <div className="shrink-0">{getStatusBadge(app.status)}</div>
+                  {/* Status and Action Buttons */}
+                  <div className="shrink-0 flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                    <div>{getStatusBadge(app.status)}</div>
+
+                    {isOffering && (
+                      <button
+                        onClick={() => handleAcceptOffer(app._id)}
+                        disabled={isAccepting}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition shadow-lg shadow-emerald-600/30 cursor-pointer disabled:opacity-50"
+                      >
+                        {isAccepting ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>Accepting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={14} />
+                            <span>Accept Placement Offer</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {isAccepted && (
+                      <Link
+                        href="/student/log-hours"
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 font-semibold text-xs border border-orange-500/30 transition"
+                      >
+                        <span>Log Hours</span>
+                        <ArrowRight size={13} />
+                      </Link>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -246,4 +341,3 @@ export default function StudentApplicationsPage() {
     </div>
   );
 }
-

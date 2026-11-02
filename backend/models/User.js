@@ -53,6 +53,12 @@ const userSchema = new mongoose.Schema(
             required: [true, "User type is required"]
         },
 
+        employerId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Employer",
+            default: null
+        },
+
         universityId: {
             type: String,
             trim: true

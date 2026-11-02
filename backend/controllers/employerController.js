@@ -63,10 +63,11 @@ async function updateMyEmployerProfile(req, res) {
             description,
             website,
             address,
-            contactEmail,
-            contactPhone
+            contactPhone,
+            contactEmail
         } = req.body;
 
+        // Validation
         if (organisationName && organisationName.trim().length < 2) {
             return res.status(400).json({
                 success: false,
@@ -74,29 +75,37 @@ async function updateMyEmployerProfile(req, res) {
             });
         }
 
+        if (description && description.trim().length > 2000) {
+            return res.status(400).json({
+                success: false,
+                message: "Validation Error: Description cannot exceed 2000 characters."
+            });
+        }
+
+        // Find or create profile
         let employer = await Employer.findOne({ primaryAdminId: userId });
 
         if (!employer) {
             employer = new Employer({
                 primaryAdminId: userId,
-                organisationName: organisationName ? organisationName.trim() : `${req.user.name}'s Organization`,
-                contactEmail: contactEmail ? contactEmail.trim().toLowerCase() : req.user.email
+                verificationStatus: "PENDING",
+                isActive: true
             });
         }
 
         if (organisationName) employer.organisationName = organisationName.trim();
-        if (description !== undefined) employer.description = description ? description.trim() : "";
-        if (website !== undefined) employer.website = website ? website.trim() : "";
-        if (contactEmail) employer.contactEmail = contactEmail.trim().toLowerCase();
-        if (contactPhone !== undefined) employer.contactPhone = contactPhone ? contactPhone.trim() : "";
+        if (description !== undefined) employer.description = description.trim();
+        if (website !== undefined) employer.website = website.trim();
+        if (contactPhone !== undefined) employer.contactPhone = contactPhone.trim();
+        if (contactEmail !== undefined) employer.contactEmail = contactEmail.trim().toLowerCase();
 
-        if (address && typeof address === "object") {
+        if (address) {
             employer.address = {
-                street: address.street ? address.street.trim() : employer.address?.street || "",
-                city: address.city ? address.city.trim() : employer.address?.city || "",
-                state: address.state ? address.state.trim() : employer.address?.state || "",
-                country: address.country ? address.country.trim() : employer.address?.country || "India",
-                postalCode: address.postalCode ? address.postalCode.trim() : employer.address?.postalCode || ""
+                street: address.street ? address.street.trim() : employer.address?.street,
+                city: address.city ? address.city.trim() : employer.address?.city,
+                state: address.state ? address.state.trim() : employer.address?.state,
+                country: address.country ? address.country.trim() : employer.address?.country,
+                postalCode: address.postalCode ? address.postalCode.trim() : employer.address?.postalCode
             };
         }
 
@@ -129,21 +138,25 @@ async function updateMyEmployerProfile(req, res) {
 
 /**
  * GET /api/employers/dashboard
- * Real-time computed KPIs and actual database records for the Employer Dashboard
+ * Aggregates live employer metrics and stats
  */
 async function getEmployerDashboard(req, res) {
     try {
         const userId = req.user._id;
-        let employer = await Employer.findOne({ primaryAdminId: userId });
+        const employer = await Employer.findOne({ primaryAdminId: userId });
 
         if (!employer) {
-            const defaultName = req.user.department || `${req.user.name}'s Organization`;
-            employer = await Employer.create({
-                organisationName: defaultName,
-                contactEmail: req.user.email,
-                primaryAdminId: userId,
-                verificationStatus: "PENDING",
-                isActive: true
+            return res.status(200).json({
+                success: true,
+                employer: null,
+                stats: {
+                    activePostings: 0,
+                    totalPostings: 0,
+                    totalApplicants: 0,
+                    activeInterns: 0,
+                    industrySupervisors: 0
+                },
+                recentOpportunities: []
             });
         }
 
@@ -154,49 +167,46 @@ async function getEmployerDashboard(req, res) {
             employer.website.trim().length > 3
         );
 
-        // Fetch real opportunities from MongoDB for this employer
-        const opportunities = await Opportunity.find({ employerId: employer._id })
-            .sort({ createdAt: -1 })
-            .lean();
-
+        // Fetch all opportunities for this employer
+        const opportunities = await Opportunity.find({ employerId: employer._id }).sort({ createdAt: -1 });
         const oppIds = opportunities.map((o) => o._id);
 
-        // Total applicants across all this employer's opportunities
-        const totalApplicants = await Application.countDocuments({
-            opportunityId: { $in: oppIds }
-        });
-
-        // Active openings currently open
         const activePostings = opportunities.filter((o) => o.status === "OPEN").length;
 
-        // Placed/active interns (accepted offers)
+        // Count total applicants across all postings
+        const totalApplicants = await Application.countDocuments({ opportunityId: { $in: oppIds } });
+
+        // Count accepted offers (active placements)
         const activeInterns = await Offer.countDocuments({
             employerId: employer._id,
             status: "ACCEPTED"
         });
 
-        // External supervisors designated for this company
+        // Count supervisors for this employer
         const industrySupervisors = await User.countDocuments({
+            employerId: employer._id,
             role: "INDUSTRY_SUPERVISOR",
-            department: employer.organisationName
+            isActive: true
         });
 
-        // Applicant counts per opportunity
-        const appCounts = await Application.aggregate([
+        // Map opportunity applicants
+        const applicantCounts = await Application.aggregate([
             { $match: { opportunityId: { $in: oppIds } } },
             { $group: { _id: "$opportunityId", count: { $sum: 1 } } }
         ]);
 
         const countMap = {};
-        appCounts.forEach((item) => {
-            countMap[item._id.toString()] = item.count;
+        applicantCounts.forEach((c) => {
+            countMap[c._id.toString()] = c.count;
         });
 
         const recentOpportunities = opportunities.slice(0, 5).map((opp) => ({
             id: opp._id,
             title: opp.title,
             type: opp.type,
-            departments: opp.eligibility?.departments?.length > 0
+            location: opp.location,
+            openPositions: opp.openPositions,
+            department: opp.eligibility?.departments?.length
                 ? opp.eligibility.departments.join(", ")
                 : "All Departments",
             stipend: opp.stipend?.amount
@@ -236,6 +246,32 @@ async function getEmployerDashboard(req, res) {
 }
 
 /**
+ * GET /api/employers/public/list
+ * Public list of registered employer organizations for supervisor onboarding and dropdowns
+ */
+async function getPublicEmployersList(req, res) {
+    try {
+        const employers = await Employer.find({ isActive: true })
+            .select("_id organisationName website address")
+            .sort({ organisationName: 1 })
+            .lean();
+
+        return res.status(200).json({
+            success: true,
+            count: employers.length,
+            employers
+        });
+    } catch (error) {
+        console.error("getPublicEmployersList error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch employers list.",
+            error: error.message
+        });
+    }
+}
+
+/**
  * GET /api/employers/:id
  * Public / Authenticated read-only profile of an employer
  */
@@ -268,5 +304,6 @@ module.exports = {
     getMyEmployerProfile,
     updateMyEmployerProfile,
     getEmployerDashboard,
+    getPublicEmployersList,
     getEmployerById
 };

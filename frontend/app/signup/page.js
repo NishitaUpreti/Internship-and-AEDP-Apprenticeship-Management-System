@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,34 @@ export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Employer list for Industry Supervisor selection
+  const [employersList, setEmployersList] = useState([]);
+  const [selectedEmployerId, setSelectedEmployerId] = useState("");
+  const [loadingEmployers, setLoadingEmployers] = useState(false);
+
+  useEffect(() => {
+    fetchEmployers();
+  }, []);
+
+  const fetchEmployers = async () => {
+    try {
+      setLoadingEmployers(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${apiUrl}/api/employers/public/list`);
+      const data = await res.json();
+      if (res.ok && data.employers) {
+        setEmployersList(data.employers);
+        if (data.employers.length > 0 && !selectedEmployerId) {
+          setSelectedEmployerId(data.employers[0]._id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load employers list:", err);
+    } finally {
+      setLoadingEmployers(false);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
@@ -43,6 +71,11 @@ export default function Signup() {
 
     if (!role) {
       setError("Please select your institutional or corporate role.");
+      return;
+    }
+
+    if (role === "supervisor" && !selectedEmployerId) {
+      setError("Please select the host company / employer you supervise for.");
       return;
     }
 
@@ -74,6 +107,7 @@ export default function Signup() {
           confirmPassword,
           universityId,
           department,
+          employerId: role === "supervisor" ? selectedEmployerId : undefined,
         }),
       });
 
@@ -85,9 +119,13 @@ export default function Signup() {
       }
 
       const isEmployer = data.user?.role === "EMPLOYER_ADMIN" || role === "employer";
+      const isSupervisor = data.user?.role === "INDUSTRY_SUPERVISOR" || role === "supervisor";
+
       setSuccess(
         isEmployer
           ? "Account registered! Redirecting to complete your Company Profile..."
+          : isSupervisor
+          ? "Supervisor account registered! Redirecting to Supervisor Portal..."
           : "Account created successfully! Redirecting to login..."
       );
 
@@ -102,6 +140,8 @@ export default function Signup() {
       setTimeout(() => {
         if (isEmployer) {
           router.push("/employer/profile");
+        } else if (isSupervisor) {
+          router.push("/supervisor");
         } else {
           router.push("/login");
         }
@@ -118,64 +158,60 @@ export default function Signup() {
     <div className="min-h-screen bg-[#111111] text-[#F5F5F5] font-sans flex flex-col justify-between relative overflow-hidden selection:bg-[#FF6B00] selection:text-white py-8">
       
       {/* Subtle ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-[#FF6B00]/10 rounded-full blur-[140px] pointer-events-none"></div>
+      <div className="absolute top-[-10%] right-[-5%] w-[450px] h-[450px] bg-[#FF6B00]/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] left-[-5%] w-[450px] h-[450px] bg-[#00E5FF]/5 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Top Bar with Back Link */}
-      <header className="px-6 pb-4 max-w-7xl w-full mx-auto flex items-center justify-between relative z-10">
+      {/* Header Bar */}
+      <header className="px-6 sm:px-12 flex justify-between items-center relative z-10 max-w-7xl mx-auto w-full">
+        <Link href="/" className="flex items-center gap-2 group">
+          <div className="h-8 w-8 rounded-lg bg-[#FF6B00] flex items-center justify-center font-bold text-white shadow-lg shadow-[#FF6B00]/20 group-hover:scale-105 transition-transform">
+            W
+          </div>
+          <span className="font-extrabold text-lg tracking-tight">
+            Work<span className="text-[#FF6B00]">Ledger</span>
+          </span>
+        </Link>
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-[#9EB3CD] hover:text-white transition-colors"
+          className="text-xs text-[#9EB3CD] hover:text-[#F5F5F5] flex items-center gap-1.5 transition-colors"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} />
           <span>Back to Home</span>
         </Link>
-        <span className="text-[11px] font-mono text-[#78889B] hidden sm:inline">
-          Institutional Work-Based Learning System
-        </span>
       </header>
 
-      {/* Center Auth Card */}
-      <main className="flex-1 flex items-center justify-center p-4 relative z-10">
-        <div className="w-full max-w-lg bg-[#171717] border border-[#303030] rounded-2xl p-7 sm:p-9 shadow-2xl space-y-6">
+      {/* Main Registration Card */}
+      <main className="flex-1 flex items-center justify-center p-4 relative z-10 my-4">
+        <div className="w-full max-w-lg bg-[#181818] border border-[#2D2D2D] rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm space-y-6">
           
-          {/* Logo & Header */}
-          <div className="text-center space-y-3">
-            <Link href="/" className="inline-block focus:outline-none">
-              <Image
-                src="/WorkLedgerLogo-v2.png"
-                alt="WorkLedger Logo"
-                width={200}
-                height={55}
-                className="h-11 w-auto mx-auto object-contain transition-transform hover:scale-[1.02]"
-                priority
-              />
-            </Link>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#F5F5F5] tracking-tight">
-                Create WorkLedger Account
-              </h1>
-              <p className="text-xs text-[#9EB3CD] mt-1">
-                Select your role to register your university or corporate portal
-              </p>
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FF6B00]/10 border border-[#FF6B00]/20 text-[#FF6B00] text-xs font-semibold uppercase tracking-wider mb-3">
+              AEDP Regulatory Registry
             </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Create Your Account
+            </h1>
+            <p className="text-xs text-[#9EB3CD] mt-1">
+              Join the institutional ecosystem for National Credit Framework (NCrF) internship logging & verification.
+            </p>
           </div>
 
-          {/* Feedback Alerts */}
+          {/* Error Banner */}
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs animate-in fade-in duration-200">
+              <AlertCircle size={16} className="shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
+          {/* Success Banner */}
           {success && (
-            <div className="p-3.5 rounded-xl bg-[#00D6A0]/10 border border-[#00D6A0]/20 text-[#00D6A0] text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
-              <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+            <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs animate-in fade-in duration-200">
+              <CheckCircle2 size={16} className="shrink-0" />
               <span>{success}</span>
             </div>
           )}
 
-          {/* Signup Form */}
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             
             {/* Name Fields */}
@@ -270,6 +306,53 @@ export default function Signup() {
               </div>
             )}
 
+            {/* Industry Supervisor: Select Company from live MongoDB employers */}
+            {selectedRole === "supervisor" && (
+              <div className="animate-in fade-in duration-200 space-y-1.5">
+                <label className="block font-semibold text-[#9EB3CD] uppercase tracking-wider">
+                  Host Organization / Employer *
+                </label>
+                <div className="relative">
+                  <Building size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B]" />
+                  <select
+                    required
+                    value={selectedEmployerId}
+                    onChange={(e) => setSelectedEmployerId(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#1D1D1D] text-[#F5F5F5] border border-[#303030] outline-none focus:border-[#FF6B00] cursor-pointer transition-colors"
+                  >
+                    <option value="" disabled className="bg-[#1D1D1D] text-gray-500">
+                      {loadingEmployers ? "Loading registered companies..." : "Select the company you supervise for"}
+                    </option>
+                    {employersList.map((emp) => (
+                      <option key={emp._id} value={emp._id} className="bg-[#1D1D1D] text-white">
+                        {emp.organisationName} {emp.address?.city ? `(${emp.address.city})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  You will be authorized to review and verify hour logs for interns placed at this organization.
+                </p>
+              </div>
+            )}
+
+            {selectedRole === "employer" && (
+              <div className="animate-in fade-in duration-200">
+                <label className="block font-semibold text-[#9EB3CD] uppercase tracking-wider mb-1.5">
+                  Company / Organisation Name
+                </label>
+                <div className="relative">
+                  <Building size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B]" />
+                  <input
+                    type="text"
+                    name="department"
+                    placeholder="e.g. Apex Cloud Solutions Pvt Ltd"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#1D1D1D] text-[#F5F5F5] border border-[#303030] outline-none focus:border-[#FF6B00] transition-colors"
+                  />
+                </div>
+              </div>
+            )}
+
             {(selectedRole === "faculty" || selectedRole === "hod") && (
               <div className="animate-in fade-in duration-200">
                 <label className="block font-semibold text-[#9EB3CD] uppercase tracking-wider mb-1.5">
@@ -295,23 +378,6 @@ export default function Signup() {
                   placeholder="e.g. Office of the Dean of Academic Affairs"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#1D1D1D] text-[#F5F5F5] border border-[#303030] outline-none focus:border-[#FF6B00] transition-colors"
                 />
-              </div>
-            )}
-
-            {(selectedRole === "employer" || selectedRole === "supervisor") && (
-              <div className="animate-in fade-in duration-200">
-                <label className="block font-semibold text-[#9EB3CD] uppercase tracking-wider mb-1.5">
-                  Company / Organisation Name
-                </label>
-                <div className="relative">
-                  <Building size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B]" />
-                  <input
-                    type="text"
-                    name="department"
-                    placeholder="e.g. Apex Cloud Solutions Pvt Ltd"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#1D1D1D] text-[#F5F5F5] border border-[#303030] outline-none focus:border-[#FF6B00] transition-colors"
-                  />
-                </div>
               </div>
             )}
 
