@@ -2,7 +2,7 @@
 import DashboardLayout from "../components/DashboardLayout";
 import {
     LayoutDashboard, BriefcaseBusiness, FileText,
-    GraduationCap, Clock, Award
+    GraduationCap, Clock, Award, ClipboardCheck, FolderLock
 } from "lucide-react";
 
 const studentLinks = [
@@ -11,7 +11,9 @@ const studentLinks = [
     {name:"My Applications",href:"/student/applications",icon:FileText},
     {name:"My Internship",href:"/student/internship",icon:GraduationCap},
     {name:"Log Hours",href:"/student/log-hours",icon:Clock},
-    {name:"My Credits", href:"/student/credits",icon:Award}
+    {name:"My Credits", href:"/student/credits",icon:Award},
+    {name:"Evaluations", href:"/student/evaluations",icon:ClipboardCheck},
+    {name:"Documents", href:"/student/documents",icon:FolderLock}
 ]
 
 export default function StudentLayout({children}){
