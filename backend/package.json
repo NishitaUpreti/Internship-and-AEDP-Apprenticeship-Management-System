@@ -10,6 +10,8 @@
     "test:models": "node tests/verify-core-models.js",
     "test:auth": "node tests/verify-auth.js",
     "test:integration": "node tests/db-integration.test.js",
+    "test:demo": "node tests/demo-student.test.js",
+    "seed:demo": "node scripts/seed-demo-students.js",
     "test:db": "node tests/db-integration.test.js",
     "test:all": "node tests/model-validation.test.js && node tests/db-integration.test.js"
   },

@@ -9,6 +9,182 @@ const {
 } = require("../config/roles");
 
 const EMAIL_REGEX = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+const { getDemoConnection } = require("../config/demoDatabase");
+const { getDemoStudentModel } = require("../models/demo/DemoStudent");
+
+function maskEmail(emailStr) {
+    if (!emailStr || typeof emailStr !== "string") return "";
+    const [local, domain] = emailStr.split("@");
+    if (!domain) return emailStr;
+    if (local.length <= 2) {
+        return `${local[0]}*@${domain}`;
+    }
+    return `${local[0]}***${local[local.length - 1]}@${domain}`;
+}
+
+/**
+ * POST /api/auth/demo-student/request-code
+ * Simulates dispatching a one-time verification code to student's demo email
+ */
+async function requestDemoVerificationCode(req, res) {
+    try {
+        const { registrationNumber } = req.body;
+        const trimmed = (registrationNumber || "").trim();
+
+        if (!/^124\d{5}$/.test(trimmed)) {
+            return res.status(400).json({
+                success: false,
+                message: "Validation Error: Registration number must be an 8-digit numeric string starting with 124 (e.g. 12429384)."
+            });
+        }
+
+        // Anti-impersonation: Check if an account already claimed this registration number
+        const existingClaim = await User.findOne({ universityId: trimmed });
+        if (existingClaim) {
+            return res.status(409).json({
+                success: false,
+                message: "Security Notice: An account with this registration number has already been registered. Impersonation of existing student accounts is prohibited."
+            });
+        }
+
+        const conn = await getDemoConnection();
+        const DemoStudent = getDemoStudentModel(conn);
+        const record = await DemoStudent.findOne({ registrationNumber: trimmed });
+
+        if (!record) {
+            return res.status(404).json({
+                success: false,
+                message: `No simulated student record found for registration number: ${trimmed}.`
+            });
+        }
+
+        if (record.academicStatus !== "ACTIVE") {
+            return res.status(400).json({
+                success: false,
+                message: `Simulated student status is '${record.academicStatus}'. Only ACTIVE students are eligible for internship registration.`,
+                academicStatus: record.academicStatus
+            });
+        }
+
+        const masked = maskEmail(record.email);
+
+        return res.status(200).json({
+            success: true,
+            message: "Simulated verification code generated for demonstration purposes.",
+            isDemo: true,
+            dataSource: "SIMULATED",
+            verificationNotice: "⚠️ DEMO SIMULATION ONLY: This is a demonstration verification mechanism. Not official university identity verification.",
+            registrationNumber: record.registrationNumber,
+            maskedEmail: masked,
+            branch: record.branch,
+            demoVerificationCode: record.demoVerificationCode,
+            simulationDisclaimer: "In production, this code is delivered exclusively to the student's institutional email address."
+        });
+    } catch (error) {
+        console.error("requestDemoVerificationCode error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to generate simulated verification code.",
+            error: error.message
+        });
+    }
+}
+
+/**
+ * GET /api/auth/demo-student/:registrationNumber
+ * Looks up simulated academic details with identity protection
+ */
+async function lookupDemoStudent(req, res) {
+    try {
+        const { registrationNumber } = req.params;
+        const trimmed = (registrationNumber || "").trim();
+
+        if (!/^124\d{5}$/.test(trimmed)) {
+            return res.status(400).json({
+                success: false,
+                message: "Validation Error: Registration number must be an 8-digit numeric string starting with 124 (e.g. 12429384)."
+            });
+        }
+
+        const conn = await getDemoConnection();
+        const DemoStudent = getDemoStudentModel(conn);
+        const record = await DemoStudent.findOne({ registrationNumber: trimmed });
+
+        if (!record) {
+            return res.status(404).json({
+                success: false,
+                message: `No simulated student record found for registration number: ${trimmed}.`
+            });
+        }
+
+        if (record.academicStatus !== "ACTIVE") {
+            return res.status(400).json({
+                success: false,
+                message: `Simulated student status is '${record.academicStatus}'. Only ACTIVE students are eligible for internship registration.`,
+                academicStatus: record.academicStatus
+            });
+        }
+
+        const masked = maskEmail(record.email);
+        const providedCode = (req.query.code || req.headers["x-demo-code"] || "").trim();
+
+        // If no code is provided, return protected masked summary to prevent enumeration
+        if (!providedCode) {
+            return res.status(200).json({
+                success: true,
+                requiresVerificationCode: true,
+                message: "Simulated student record located. To protect academic privacy and prevent enumeration, provide demo verification code to view full academic details.",
+                isDemo: true,
+                dataSource: "SIMULATED",
+                verificationNotice: "⚠️ DEMO SIMULATION ONLY: Demonstration verification mechanism.",
+                student: {
+                    registrationNumber: record.registrationNumber,
+                    maskedEmail: masked,
+                    branch: record.branch,
+                    academicStatus: record.academicStatus,
+                    isDemo: true,
+                    dataSource: "SIMULATED"
+                }
+            });
+        }
+
+        // Verify code
+        if (providedCode !== record.demoVerificationCode) {
+            return res.status(401).json({
+                success: false,
+                message: "Security Error: Invalid demo verification code. Knowing a registration number alone is insufficient to access student academic records."
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Simulated student academic details verified successfully.",
+            isDemo: true,
+            dataSource: "SIMULATED",
+            verificationNotice: "⚠️ DEMO SIMULATION ONLY: Verified for demonstration purposes only. Not official university identity verification.",
+            student: {
+                registrationNumber: record.registrationNumber,
+                fullName: record.fullName,
+                email: record.email,
+                maskedEmail: masked,
+                branch: record.branch,
+                semester: record.semester,
+                cgpa: record.cgpa,
+                academicStatus: record.academicStatus,
+                admissionYear: record.admissionYear,
+                isDemo: true,
+                dataSource: "SIMULATED"
+            }
+        });
+    } catch (error) {
+        console.error("lookupDemoStudent error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to query simulated university database.",
+            error: error.message
+        });
+    }
+}
 
 /**
  * POST /api/auth/signup
@@ -16,7 +192,7 @@ const EMAIL_REGEX = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
  */
 async function signup(req, res) {
     try {
-        const {
+        let {
             name,
             firstName,
             lastName,
@@ -99,6 +275,75 @@ async function signup(req, res) {
             assignedRole = normalized;
         }
 
+        // Validate and retrieve simulated university record if demo registration number is provided
+        let demoRecord = null;
+        const candidateRegNo = (req.body.demoRegistrationNumber || (assignedRole === "STUDENT" && universityId ? universityId : "")).trim();
+        const candidateCode = (req.body.demoVerificationCode || "").trim();
+
+        if (assignedRole === "STUDENT" && (req.body.demoRegistrationNumber || (candidateRegNo && /^124\d{5}$/.test(candidateRegNo)))) {
+            if (!/^124\d{5}$/.test(candidateRegNo)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Validation Error: Registration number must be an 8-digit numeric string starting with 124 (e.g. 12429384)."
+                });
+            }
+
+            // Anti-Impersonation Check: Ensure registration number is not already registered
+            const existingClaim = await User.findOne({ universityId: candidateRegNo });
+            if (existingClaim) {
+                return res.status(409).json({
+                    success: false,
+                    message: `Registration rejected: An account with registration number ${candidateRegNo} has already been registered. Student impersonation is prohibited.`
+                });
+            }
+
+            // Require demo verification code to prevent registration with registration number alone
+            if (!candidateCode) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Validation Error: Demo verification code is required to register with a simulated university registration number."
+                });
+            }
+
+            try {
+                const conn = await getDemoConnection();
+                const DemoStudent = getDemoStudentModel(conn);
+                demoRecord = await DemoStudent.findOne({ registrationNumber: candidateRegNo });
+
+                if (!demoRecord) {
+                    return res.status(404).json({
+                        success: false,
+                        message: `Validation Error: No simulated student record found for registration number: ${candidateRegNo}.`
+                    });
+                }
+
+                if (demoRecord.academicStatus !== "ACTIVE") {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Registration rejected: Simulated student record status is '${demoRecord.academicStatus}'. Only ACTIVE students are eligible for internship registration.`
+                    });
+                }
+
+                if (candidateCode !== demoRecord.demoVerificationCode) {
+                    return res.status(401).json({
+                        success: false,
+                        message: `Verification Error: Invalid demo verification code for registration number ${candidateRegNo}. Identity verification failed.`
+                    });
+                }
+
+                // Prevent student-side manipulation: use database-verified academic information
+                fullName = demoRecord.fullName;
+                department = demoRecord.branch;
+            } catch (demoErr) {
+                console.error("Demo student lookup error during signup:", demoErr);
+                return res.status(500).json({
+                    success: false,
+                    message: "Failed to verify registration against simulated university database.",
+                    error: demoErr.message
+                });
+            }
+        }
+
         // Check for existing email in MongoDB
         const existingUser = await User.findOne({ email: normalizedEmail });
         if (existingUser) {
@@ -115,7 +360,7 @@ async function signup(req, res) {
         // Derive userType based on trust boundary (INTERNAL vs EXTERNAL)
         const userType = ROLE_USER_TYPE_MAP[assignedRole] || "INTERNAL";
 
-        const resolvedUniversityId = universityId ? universityId.trim() : (userType === "INTERNAL" ? `UNIV-${Date.now()}-${Math.floor(Math.random() * 1000)}` : undefined);
+        const resolvedUniversityId = demoRecord ? demoRecord.registrationNumber : (universityId ? universityId.trim() : (userType === "INTERNAL" ? `UNIV-${Date.now()}-${Math.floor(Math.random() * 1000)}` : undefined));
         const resolvedExternalRef = req.body.externalIdentityRef ? req.body.externalIdentityRef.trim() : (userType === "EXTERNAL" ? `EXT-${Date.now()}-${Math.floor(Math.random() * 1000)}` : undefined);
 
         // Create user in MongoDB
@@ -228,10 +473,35 @@ async function getMe(req, res) {
         const user = req.user;
         const permissions = ROLE_PERMISSIONS[user.role] || [];
 
+        let demoAcademicRecord = null;
+        if (user.role === "STUDENT" && user.universityId && /^124\d{5}$/.test(user.universityId)) {
+            try {
+                const conn = await getDemoConnection();
+                const DemoStudent = getDemoStudentModel(conn);
+                const rec = await DemoStudent.findOne({ registrationNumber: user.universityId });
+                if (rec) {
+                    demoAcademicRecord = {
+                        registrationNumber: rec.registrationNumber,
+                        fullName: rec.fullName,
+                        branch: rec.branch,
+                        semester: rec.semester,
+                        cgpa: rec.cgpa,
+                        academicStatus: rec.academicStatus,
+                        admissionYear: rec.admissionYear,
+                        isDemo: true,
+                        dataSource: "SIMULATED"
+                    };
+                }
+            } catch (demoErr) {
+                console.error("Error retrieving demo academic record in getMe:", demoErr.message);
+            }
+        }
+
         return res.status(200).json({
             success: true,
             user: user.toJSON(),
-            permissions
+            permissions,
+            demoAcademicRecord
         });
     } catch (error) {
         console.error("getMe error:", error);
@@ -251,6 +521,24 @@ async function updateProfile(req, res) {
     try {
         const user = req.user;
         const { name, universityId, department } = req.body;
+
+        // Security check: students cannot alter academic records retrieved from simulated database
+        if (user.role === "STUDENT") {
+            if (universityId !== undefined && universityId.trim() !== user.universityId) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Security Error: University registration number cannot be altered on an existing account."
+                });
+            }
+            if (user.universityId && /^124\d{5}$/.test(user.universityId)) {
+                if (department !== undefined && department.trim() !== user.department) {
+                    return res.status(403).json({
+                        success: false,
+                        message: "Security Error: Academic department retrieved from simulated university database cannot be modified."
+                    });
+                }
+            }
+        }
 
         if (name && name.trim()) {
             user.name = name.trim();
@@ -283,5 +571,7 @@ module.exports = {
     signup,
     login,
     getMe,
-    updateProfile
+    updateProfile,
+    lookupDemoStudent,
+    requestDemoVerificationCode
 };
