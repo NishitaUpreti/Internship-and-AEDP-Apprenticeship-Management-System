@@ -38,6 +38,12 @@ const applicationSchema = new mongoose.Schema(
             trim: true
         },
 
+        cgpa: {
+            type: Number,
+            min: 0,
+            max: 10
+        },
+
         coverNote: {
             type: String,
             trim: true,

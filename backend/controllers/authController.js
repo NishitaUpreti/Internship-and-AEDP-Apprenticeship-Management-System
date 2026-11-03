@@ -1,11 +1,14 @@
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const Employer = require("../models/Employer");
 const { generateToken } = require("../utils/jwt");
 const {
     ROLE_USER_TYPE_MAP,
     ROLE_PERMISSIONS,
     normalizeSignupRole,
-    ALLOWED_PUBLIC_SIGNUP_ROLES
+    ALLOWED_PUBLIC_SIGNUP_ROLES,
+    ROLE_ALIASES,
+    ROLE_DISPLAY_NAMES
 } = require("../config/roles");
 
 const EMAIL_REGEX = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
@@ -25,7 +28,8 @@ async function signup(req, res) {
             confirmPassword,
             role,
             universityId,
-            department
+            department,
+            employerId
         } = req.body;
 
         // Resolve name if split into firstName / lastName
@@ -93,7 +97,7 @@ async function signup(req, res) {
                 return res.status(400).json({
                     success: false,
                     message: "Validation Error: Invalid or prohibited role selected for public registration.",
-                    allowedRoles: ["Student", "Employer", "Supervisor", "Faculty"]
+                    allowedRoles: ALLOWED_PUBLIC_SIGNUP_ROLES
                 });
             }
             assignedRole = normalized;
@@ -106,6 +110,16 @@ async function signup(req, res) {
                 success: false,
                 message: "An account with this email address already exists. Please login instead."
             });
+        }
+
+        // If Industry Supervisor, validate employer selection
+        let validatedEmployerId = null;
+        let linkedEmployer = null;
+        if (assignedRole === "INDUSTRY_SUPERVISOR" && employerId) {
+            linkedEmployer = await Employer.findById(employerId);
+            if (linkedEmployer) {
+                validatedEmployerId = linkedEmployer._id;
+            }
         }
 
         // Hash the password securely
@@ -122,6 +136,7 @@ async function signup(req, res) {
             passwordHash,
             role: assignedRole,
             userType,
+            employerId: validatedEmployerId,
             universityId: universityId ? universityId.trim() : undefined,
             department: department ? department.trim() : undefined,
             isActive: true
@@ -130,11 +145,19 @@ async function signup(req, res) {
         // Generate authentication token
         const token = generateToken(newUser);
 
+        const userObj = newUser.toJSON();
+        if (linkedEmployer) {
+            userObj.employer = {
+                _id: linkedEmployer._id,
+                organisationName: linkedEmployer.organisationName
+            };
+        }
+
         return res.status(201).json({
             success: true,
             message: "User registered successfully.",
             token,
-            user: newUser.toJSON()
+            user: userObj
         });
     } catch (error) {
         console.error("Signup error:", error);
@@ -148,13 +171,20 @@ async function signup(req, res) {
 
 /**
  * POST /api/auth/login
- * Authenticates existing P15 users
+ * Authenticates existing P15 users strictly checking Role, Email, and Password
  */
 async function login(req, res) {
     try {
-        const { email, password } = req.body;
+        const { email, password, role } = req.body;
 
-        // Validate input fields
+        // Validate required fields
+        if (!role || typeof role !== "string" || !role.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select your institutional or corporate role."
+            });
+        }
+
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -162,10 +192,21 @@ async function login(req, res) {
             });
         }
 
+        const trimmedRole = role.trim();
+        const normalizedRole = ROLE_ALIASES[trimmedRole] || ROLE_ALIASES[trimmedRole.toLowerCase()];
+        if (!normalizedRole) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid role selected. Please choose a valid role."
+            });
+        }
+
         const normalizedEmail = email.toLowerCase().trim();
 
         // Find user by email, explicitly including passwordHash for verification
-        const user = await User.findOne({ email: normalizedEmail }).select("+passwordHash");
+        const user = await User.findOne({ email: normalizedEmail })
+            .select("+passwordHash")
+            .populate("employerId", "organisationName website");
 
         // Invalid credentials if user not found
         if (!user) {
@@ -184,6 +225,16 @@ async function login(req, res) {
             });
         }
 
+        // Verify role match: user can ONLY log in if role matches registered account role
+        if (user.role !== normalizedRole) {
+            const registeredRoleName = ROLE_DISPLAY_NAMES[user.role] || user.role;
+            const requestedRoleName = ROLE_DISPLAY_NAMES[normalizedRole] || normalizedRole;
+            return res.status(401).json({
+                success: false,
+                message: `Role mismatch: This account is registered as ${registeredRoleName}, not ${requestedRoleName}. Please select your registered role.`
+            });
+        }
+
         // Handle inactive or blocked accounts
         if (!user.isActive) {
             return res.status(403).json({
@@ -199,11 +250,24 @@ async function login(req, res) {
         // Generate authentication token
         const token = generateToken(user);
 
+        const userObj = user.toJSON();
+
+        // If employer admin, attach employer profile if found
+        if (user.role === "EMPLOYER_ADMIN") {
+            const employer = await Employer.findOne({ primaryAdminId: user._id });
+            if (employer) {
+                userObj.employer = {
+                    _id: employer._id,
+                    organisationName: employer.organisationName
+                };
+            }
+        }
+
         return res.status(200).json({
             success: true,
             message: "Login successful.",
             token,
-            user: user.toJSON()
+            user: userObj
         });
     } catch (error) {
         console.error("Login error:", error);
@@ -221,12 +285,23 @@ async function login(req, res) {
  */
 async function getMe(req, res) {
     try {
-        const user = req.user;
+        const user = await User.findById(req.user._id).populate("employerId", "organisationName website");
         const permissions = ROLE_PERMISSIONS[user.role] || [];
+
+        const userObj = user.toJSON();
+        if (user.role === "EMPLOYER_ADMIN") {
+            const employer = await Employer.findOne({ primaryAdminId: user._id });
+            if (employer) {
+                userObj.employer = {
+                    _id: employer._id,
+                    organisationName: employer.organisationName
+                };
+            }
+        }
 
         return res.status(200).json({
             success: true,
-            user: user.toJSON(),
+            user: userObj,
             permissions
         });
     } catch (error) {

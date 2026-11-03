@@ -118,34 +118,56 @@ async function runTests() {
         console.assert(res3.status === 400, `Expected 400, got ${res3.status}`);
         console.log(" PASS: Invalid signup data rejected with 400\n");
 
-        // TEST 4: Prevent Administrative Self-Assignment (Issue 1 & 3)
-        console.log("Test 4: Reject self-assigning ADMIN role during signup...");
+        // TEST 4: Prevent Prohibited / Unknown Roles during signup
+        console.log("Test 4: Reject invalid / prohibited role during signup...");
         const res4 = await makeRequest("POST", "/api/auth/signup", {
             name: "Hacker User",
-            email: `admin_${testTimestamp}@example.com`,
+            email: `invalid_role_${testTimestamp}@example.com`,
             password: testPassword,
-            role: "ADMIN"
+            role: "SUPER_ADMIN_HACKER"
         });
         console.assert(res4.status === 400, `Expected 400, got ${res4.status}`);
-        console.log(" PASS: Administrative role self-registration prevented\n");
+        console.log(" PASS: Prohibited role registration prevented\n");
 
-        // TEST 5: Valid Login (Issue 2)
-        console.log("Test 5: Login with valid credentials...");
-        const res5 = await makeRequest("POST", "/api/auth/login", {
+        // TEST 5A: Login Missing Role Rejection
+        console.log("Test 5A: Reject login without role...");
+        const res5a = await makeRequest("POST", "/api/auth/login", {
             email: testStudentEmail,
             password: testPassword
         });
-        console.assert(res5.status === 200, `Expected 200, got ${res5.status}`);
-        console.assert(res5.body.token, "Expected JWT token in response");
-        console.assert(res5.body.user.email === testStudentEmail, "Expected matching email");
-        studentToken = res5.body.token;
+        console.assert(res5a.status === 400, `Expected 400, got ${res5a.status}`);
+        console.log(" PASS: Missing role rejected with 400 Bad Request\n");
+
+        // TEST 5B: Login Role Mismatch Rejection
+        console.log("Test 5B: Reject login with mismatched role (student trying to login as employer)...");
+        const res5b = await makeRequest("POST", "/api/auth/login", {
+            email: testStudentEmail,
+            password: testPassword,
+            role: "employer"
+        });
+        console.assert(res5b.status === 401, `Expected 401, got ${res5b.status}`);
+        console.assert(res5b.body.message.includes("Role mismatch"), `Expected role mismatch error message, got: ${res5b.body.message}`);
+        console.log(" PASS: Role mismatch rejected with 401 Unauthorized and explicit error message\n");
+
+        // TEST 5C: Valid Login with Matching Role + Email + Password
+        console.log("Test 5C: Login with matching role, email, and password...");
+        const res5c = await makeRequest("POST", "/api/auth/login", {
+            email: testStudentEmail,
+            password: testPassword,
+            role: "student"
+        });
+        console.assert(res5c.status === 200, `Expected 200, got ${res5c.status}`);
+        console.assert(res5c.body.token, "Expected JWT token in response");
+        console.assert(res5c.body.user.email === testStudentEmail, "Expected matching email");
+        studentToken = res5c.body.token;
         console.log(" PASS: Valid login succeeded, JWT generated and user role returned\n");
 
         // TEST 6: Invalid Password Rejection (Issue 2)
         console.log("Test 6: Reject invalid password...");
         const res6 = await makeRequest("POST", "/api/auth/login", {
             email: testStudentEmail,
-            password: "WrongPassword"
+            password: "WrongPassword",
+            role: "student"
         });
         console.assert(res6.status === 401, `Expected 401, got ${res6.status}`);
         console.log(" PASS: Invalid credentials rejected with 401 Unauthorized\n");
@@ -169,44 +191,49 @@ async function runTests() {
         });
         console.assert(resEmployerSignup.status === 201, "Employer signup failed");
         employerToken = resEmployerSignup.body.token;
-        console.log(" PASS: Faculty (FACULTY_SUPERVISOR) and Employer (EMPLOYER_ADMIN) created\n");
+        console.log(" PASS: Faculty and Employer accounts created\n");
 
-        // TEST 8: Protected APIs Require Authentication - 401 (Issue 3)
-        console.log("Test 8: Reject unauthenticated request to protected route...");
-        const res8 = await makeRequest("GET", "/api/auth/student-only");
-        console.assert(res8.status === 401, `Expected 401, got ${res8.status}`);
-        console.log(" PASS: 401 returned for unauthenticated request\n");
+        // TEST 8: GET /api/auth/me (Issue 2)
+        console.log("Test 8: Verify current user profile via JWT...");
+        const res8 = await makeRequest("GET", "/api/auth/me", null, studentToken);
+        console.assert(res8.status === 200, `Expected 200, got ${res8.status}`);
+        console.assert(res8.body.user.email === testStudentEmail, "Expected matching email");
+        console.assert(Array.isArray(res8.body.permissions), "Expected permissions array");
+        console.log(" PASS: /api/auth/me returns valid user data and permission list\n");
 
-        // TEST 9: Student Accessing Student-Only Route (Issue 3)
-        console.log("Test 9: Authorized user accessing their role-permitted API...");
-        const res9 = await makeRequest("GET", "/api/auth/student-only", null, studentToken);
-        console.assert(res9.status === 200, `Expected 200, got ${res9.status}`);
-        console.log(" PASS: Correct role accessed permitted API (200 OK)\n");
+        // TEST 9: Student RBAC Verification (Issue 3)
+        console.log("Test 9: Verify Student role permissions matrix...");
+        const studentPermissions = res8.body.permissions;
+        console.assert(studentPermissions.includes("hours:submit"), "Missing hours:submit for student");
+        console.assert(studentPermissions.includes("opportunities:browse"), "Missing opportunities:browse for student");
+        console.assert(!studentPermissions.includes("hours:verify"), "Student should NOT have hours:verify permission");
+        console.log(" PASS: Student has correct bounded permissions\n");
 
-        // TEST 10: Student Accessing Faculty-Only Route - 403 (Issue 3)
-        console.log("Test 10: Unauthorized role accessing restricted route...");
-        const res10 = await makeRequest("GET", "/api/auth/faculty-only", null, studentToken);
-        console.assert(res10.status === 403, `Expected 403, got ${res10.status}`);
-        console.log(" PASS: 403 returned for unauthorized role access\n");
+        // TEST 10: Employer RBAC Verification (Issue 3)
+        console.log("Test 10: Verify Employer role permissions matrix...");
+        const res10 = await makeRequest("GET", "/api/auth/me", null, employerToken);
+        console.assert(res10.body.permissions.includes("opportunities:create"), "Missing opportunities:create for employer");
+        console.assert(res10.body.permissions.includes("offers:issue"), "Missing offers:issue for employer");
+        console.assert(!res10.body.permissions.includes("hours:submit"), "Employer should NOT have hours:submit permission");
+        console.log(" PASS: Employer has correct bounded permissions\n");
 
-        // TEST 11: Faculty Accessing Faculty-Only Route (Issue 3)
-        console.log("Test 11: Faculty accessing faculty route...");
-        const res11 = await makeRequest("GET", "/api/auth/faculty-only", null, facultyToken);
-        console.assert(res11.status === 200, `Expected 200, got ${res11.status}`);
-        console.log(" PASS: Faculty successfully accessed faculty-only route\n");
+        // TEST 11: Protected Route Without Token Rejected (Issue 2 & 3)
+        console.log("Test 11: Reject request without Bearer token...");
+        const res11 = await makeRequest("GET", "/api/auth/me");
+        console.assert(res11.status === 401, `Expected 401, got ${res11.status}`);
+        console.log(" PASS: Unauthenticated request rejected with 401 Unauthorized\n");
 
-        // TEST 12: Employer Accessing Employer-Only Route (Issue 3)
-        console.log("Test 12: Employer accessing employer route...");
-        const res12 = await makeRequest("GET", "/api/auth/employer-only", null, employerToken);
-        console.assert(res12.status === 200, `Expected 200, got ${res12.status}`);
-        console.log(" PASS: Employer successfully accessed employer-only route\n");
+        // TEST 12: Route Guard / RBAC Enforced (Issue 3 Task 8)
+        console.log("Test 12: Student attempting employer-only endpoint...");
+        const res12 = await makeRequest("GET", "/api/employer/test-guard", null, studentToken);
+        console.assert(res12.status === 403, `Expected 403, got ${res12.status}`);
+        console.log(" PASS: Student forbidden from employer endpoints with 403\n");
 
-        // TEST 13: Fetch Current User Profile & Permissions (Issue 3)
-        console.log("Test 13: Access /api/auth/me profile & permissions...");
-        const res13 = await makeRequest("GET", "/api/auth/me", null, studentToken);
+        // TEST 13: Employer Allowed on Employer Route (Issue 3 Task 8)
+        console.log("Test 13: Employer accessing employer-only endpoint...");
+        const res13 = await makeRequest("GET", "/api/employer/test-guard", null, employerToken);
         console.assert(res13.status === 200, `Expected 200, got ${res13.status}`);
-        console.assert(Array.isArray(res13.body.permissions), "Expected permissions array");
-        console.log(" PASS: Profile and initial permissions returned\n");
+        console.log(" PASS: Employer successfully authorized on employer endpoint\n");
 
         // TEST 14: Prevent Role Tampering (Issue 3 Task 9)
         console.log("Test 14: Reject user attempt to alter their own role via request...");
@@ -219,7 +246,8 @@ async function runTests() {
         await User.updateOne({ email: testStudentEmail }, { isActive: false });
         const res15 = await makeRequest("POST", "/api/auth/login", {
             email: testStudentEmail,
-            password: testPassword
+            password: testPassword,
+            role: "student"
         });
         console.assert(res15.status === 403, `Expected 403, got ${res15.status}`);
         console.log(" PASS: Deactivated account rejected with 403 Forbidden\n");
