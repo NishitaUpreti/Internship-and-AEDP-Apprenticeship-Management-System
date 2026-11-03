@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import {
   Mail,
   Lock,
+  UserCheck,
   ArrowRight,
   ArrowLeft,
   AlertCircle,
@@ -17,6 +18,7 @@ import {
 
 export default function Login() {
   const router = useRouter();
+  const [selectedRole, setSelectedRole] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -28,8 +30,14 @@ export default function Login() {
     setSuccess("");
 
     const form = event.target;
+    const role = selectedRole || form.role?.value;
     const email = form.email.value.trim();
     const password = form.password.value;
+
+    if (!role) {
+      setError("Please select your institutional or corporate role.");
+      return;
+    }
 
     if (!email || !password) {
       setError("Please enter both your email address and password.");
@@ -45,7 +53,7 @@ export default function Login() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, role }),
       });
 
       const data = await response.json();
@@ -66,16 +74,16 @@ export default function Login() {
       }
 
       // Role-based routing for all 8 P15 roles
-      const role = data.user?.role;
+      const userRole = data.user?.role;
       let targetRoute = "/";
-      if (role === "STUDENT") targetRoute = "/student";
-      else if (role === "FACULTY_SUPERVISOR") targetRoute = "/faculty";
-      else if (role === "EMPLOYER_ADMIN") targetRoute = "/employer";
-      else if (role === "INDUSTRY_SUPERVISOR") targetRoute = "/supervisor";
-      else if (role === "INTERNSHIP_COORDINATOR") targetRoute = "/coordinator";
-      else if (role === "HOD") targetRoute = "/hod";
-      else if (role === "DEAN") targetRoute = "/dean";
-      else if (role === "ADMIN") targetRoute = "/admin";
+      if (userRole === "STUDENT") targetRoute = "/student";
+      else if (userRole === "FACULTY_SUPERVISOR") targetRoute = "/faculty";
+      else if (userRole === "EMPLOYER_ADMIN") targetRoute = "/employer";
+      else if (userRole === "INDUSTRY_SUPERVISOR") targetRoute = "/supervisor";
+      else if (userRole === "INTERNSHIP_COORDINATOR") targetRoute = "/coordinator";
+      else if (userRole === "HOD") targetRoute = "/hod";
+      else if (userRole === "DEAN") targetRoute = "/dean";
+      else if (userRole === "ADMIN") targetRoute = "/admin";
 
       setTimeout(() => {
         router.push(targetRoute);
@@ -151,14 +159,59 @@ export default function Login() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Role Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-[#9EB3CD] uppercase tracking-wider mb-1.5">
+                Role *
+              </label>
+              <div className="relative">
+                <UserCheck size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B] pointer-events-none" />
+                <select
+                  name="role"
+                  required
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1D1D1D] text-[#F5F5F5] border border-[#303030] outline-none focus:border-[#FF6B00] text-xs cursor-pointer transition-colors"
+                >
+                  <option value="" disabled className="bg-[#1D1D1D] text-gray-500">
+                    Select your role
+                  </option>
+                  <option value="student" className="bg-[#1D1D1D] text-white">
+                    Student (AEDP Apprentice / Intern)
+                  </option>
+                  <option value="employer" className="bg-[#1D1D1D] text-white">
+                    Employer Admin (Host Organisation)
+                  </option>
+                  <option value="supervisor" className="bg-[#1D1D1D] text-white">
+                    Industry Supervisor (Workplace Mentor)
+                  </option>
+                  <option value="faculty" className="bg-[#1D1D1D] text-white">
+                    Faculty Supervisor / Academic Mentor
+                  </option>
+                  <option value="coordinator" className="bg-[#1D1D1D] text-white">
+                    Internship Coordinator
+                  </option>
+                  <option value="hod" className="bg-[#1D1D1D] text-white">
+                    Head of Department (HoD)
+                  </option>
+                  <option value="dean" className="bg-[#1D1D1D] text-white">
+                    Dean & Academic Office
+                  </option>
+                  <option value="admin" className="bg-[#1D1D1D] text-white">
+                    Institutional Administrator
+                  </option>
+                </select>
+              </div>
+            </div>
             
             {/* Email Field */}
             <div>
               <label className="block text-xs font-semibold text-[#9EB3CD] uppercase tracking-wider mb-1.5">
-                Email Address
+                Email Address *
               </label>
               <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B]" />
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B] pointer-events-none" />
                 <input
                   type="email"
                   name="email"
@@ -173,11 +226,11 @@ export default function Login() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-[#9EB3CD] uppercase tracking-wider">
-                  Password
+                  Password *
                 </label>
               </div>
               <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B]" />
+                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#78889B] pointer-events-none" />
                 <input
                   type={showPassword ? "text" : "password"}
                   name="password"

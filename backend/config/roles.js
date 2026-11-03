@@ -62,6 +62,18 @@ const ROLE_ALIASES = {
     ADMIN: "ADMIN"
 };
 
+// User-friendly display names for UI error messages & logging
+const ROLE_DISPLAY_NAMES = {
+    STUDENT: "Student (AEDP Apprentice / Intern)",
+    EMPLOYER_ADMIN: "Employer Admin (Host Organisation)",
+    INDUSTRY_SUPERVISOR: "Industry Supervisor (Workplace Mentor)",
+    FACULTY_SUPERVISOR: "Faculty Supervisor / Academic Mentor",
+    INTERNSHIP_COORDINATOR: "Internship Coordinator",
+    HOD: "Head of Department (HoD)",
+    DEAN: "Dean & Academic Office",
+    ADMIN: "Institutional Administrator"
+};
+
 /**
  * Normalizes input role string to canonical enum value if allowed for public signup.
  * Returns null if role is not recognized or not permitted.
@@ -142,6 +154,7 @@ module.exports = {
     ROLE_USER_TYPE_MAP,
     ALLOWED_PUBLIC_SIGNUP_ROLES,
     ROLE_ALIASES,
+    ROLE_DISPLAY_NAMES,
     ROLE_PERMISSIONS,
     normalizeSignupRole
 };

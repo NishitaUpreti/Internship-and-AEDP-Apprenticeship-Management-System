@@ -6,7 +6,9 @@ const {
     ROLE_USER_TYPE_MAP,
     ROLE_PERMISSIONS,
     normalizeSignupRole,
-    ALLOWED_PUBLIC_SIGNUP_ROLES
+    ALLOWED_PUBLIC_SIGNUP_ROLES,
+    ROLE_ALIASES,
+    ROLE_DISPLAY_NAMES
 } = require("../config/roles");
 
 const EMAIL_REGEX = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
@@ -169,17 +171,33 @@ async function signup(req, res) {
 
 /**
  * POST /api/auth/login
- * Authenticates existing P15 users
+ * Authenticates existing P15 users strictly checking Role, Email, and Password
  */
 async function login(req, res) {
     try {
-        const { email, password } = req.body;
+        const { email, password, role } = req.body;
 
-        // Validate input fields
+        // Validate required fields
+        if (!role || typeof role !== "string" || !role.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Please select your institutional or corporate role."
+            });
+        }
+
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
                 message: "Please provide both email and password."
+            });
+        }
+
+        const trimmedRole = role.trim();
+        const normalizedRole = ROLE_ALIASES[trimmedRole] || ROLE_ALIASES[trimmedRole.toLowerCase()];
+        if (!normalizedRole) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid role selected. Please choose a valid role."
             });
         }
 
@@ -204,6 +222,16 @@ async function login(req, res) {
             return res.status(401).json({
                 success: false,
                 message: "Invalid email or password."
+            });
+        }
+
+        // Verify role match: user can ONLY log in if role matches registered account role
+        if (user.role !== normalizedRole) {
+            const registeredRoleName = ROLE_DISPLAY_NAMES[user.role] || user.role;
+            const requestedRoleName = ROLE_DISPLAY_NAMES[normalizedRole] || normalizedRole;
+            return res.status(401).json({
+                success: false,
+                message: `Role mismatch: This account is registered as ${registeredRoleName}, not ${requestedRoleName}. Please select your registered role.`
             });
         }
 
